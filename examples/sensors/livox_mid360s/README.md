@@ -35,6 +35,10 @@ config/sensors/lidar/
 config/sensors/schema/
   lidar-3d.schema.json
 
+config/
+  livox-mid360s-pdudef-compact.json   robot Mid360S -> the pdutypes below
+  livox-mid360s-pdutypes.json         one 385,024 byte PointCloud2 channel
+
 scan_patterns/
   README.md                        how to build a table; tables are not committed
 ```
@@ -107,9 +111,32 @@ Tables are not committed. See `scan_patterns/README.md`.
 ## Run
 
 Publisher and reader are separate Hakoniwa assets. The publisher owns Conductor;
-the reader must not start it. Use three terminals, as `pdu_communication` does.
+the reader must not start it. Use three terminals, as `color_camera` does.
+
+Both default to what this repository ships, so run them from the repository root
+with no arguments. `hakopy` and `hako-cmd` come from `hakoniwa-core-pro`; see the
+top-level README for that install.
 
 Terminal A, the publisher:
+
+```bash
+python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py
+```
+
+Terminal B, the reader (add `--headless` where there is no display):
+
+```bash
+python3 examples/sensors/livox_mid360s/read_point_cloud.py
+```
+
+Terminal C, once both report `WAITING`:
+
+```bash
+hako-cmd start
+```
+
+Paths can be overridden. A composition that sizes the channel itself, such as a
+Hakoniwa Business Pack Recipe, passes its own `--config` and `--pdu-size`:
 
 ```bash
 python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py \
@@ -117,18 +144,6 @@ python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py \
     --profile config/sensors/lidar/livox-mid360s.json \
     --scene models/sensors/lidar_3d/livox-mid360s-sample.xml \
     --pdu-size 385024
-```
-
-Terminal B, the reader (add `--headless` where there is no display):
-
-```bash
-python3 examples/sensors/livox_mid360s/read_point_cloud.py --config <pdudef.json>
-```
-
-Terminal C, once both report `WAITING`:
-
-```bash
-hako-cmd start
 ```
 
 ## Example Output
@@ -155,6 +170,11 @@ pdu_size = 760 + max_points * point_step
 `pdu_config.max_points` and `pdu_config.point_step` in the profile are what a
 publisher budgets against. A frame that exceeds the budget is truncated rather
 than overrunning the channel.
+
+The publisher does not restate that size. With no `--pdu-size` it reads the
+channel its `--config` pdudef declares, so the value cannot drift from the
+channel the runtime actually opens. `tests/test_lidar_3d_profile.py` checks the
+shipped pdutypes against the profile.
 
 `read_point_cloud.py` draws from inside the simulation callback, on the main
 thread, rather than splitting the GUI and `hakopy.start()` across two threads as

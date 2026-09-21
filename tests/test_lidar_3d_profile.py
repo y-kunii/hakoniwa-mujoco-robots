@@ -23,6 +23,9 @@ SCHEMA_PATH = SENSOR_DIR / "schema/lidar-3d.schema.json"
 UNIFORM_PROFILE = SENSOR_DIR / "lidar/livox-mid360s.json"
 TABLE_PROFILE = SENSOR_DIR / "lidar/livox-mid360s-table.json"
 SAMPLE_SCENE = ROOT / "models/sensors/lidar_3d/livox-mid360s-sample.xml"
+PDU_DEF = ROOT / "config/livox-mid360s-pdudef-compact.json"
+PDU_TYPES = ROOT / "config/livox-mid360s-pdutypes.json"
+ENVELOPE_BYTES = 760  # PointCloud2 serialises to this whatever the point count
 
 
 def load_json(path: Path):
@@ -101,6 +104,41 @@ class Lidar3dSchemaTest(unittest.TestCase):
         # Millimetres, matching lidar-2d: 0.1 m blind zone, 100 m cutoff.
         self.assertEqual(spec["DetectionDistance"]["Min"], 100)
         self.assertEqual(spec["DetectionDistance"]["Max"], 100000)
+
+
+class ShippedChannelTest(unittest.TestCase):
+    """The example must run from a plain checkout, as color_camera does.
+
+    That needs a pdudef and pdutypes in config/, and they must agree with the
+    profile: the asset budgets points against the channel the runtime opens, so
+    a channel smaller than the profile's budget truncates every frame.
+    """
+
+    def setUp(self):
+        self.profile = load_json(UNIFORM_PROFILE)
+        self.definition = load_json(PDU_DEF)
+        self.entries = load_json(PDU_TYPES)
+
+    def test_the_pdudef_resolves_to_the_shipped_pdutypes(self):
+        robot = self.definition["robots"][0]
+        self.assertEqual(robot["name"], "Mid360S", "the assets default to this robot name")
+        path = next(p["path"] for p in self.definition["paths"]
+                    if p["id"] == robot["pdutypes_id"])
+        self.assertEqual((PDU_DEF.parent / path).resolve(), PDU_TYPES.resolve())
+
+    def test_the_channel_matches_what_the_profile_declares(self):
+        pdu = self.profile["pdu_config"]
+        entry = next(e for e in self.entries if e["name"] == pdu["pdu_name"])
+        self.assertEqual(entry["type"], pdu["message_type"])
+        budget = ENVELOPE_BYTES + int(pdu["max_points"]) * int(pdu["point_step"])
+        self.assertGreaterEqual(
+            entry["pdu_size"], budget,
+            "the shipped channel is smaller than the profile's point budget, "
+            "so frames would be truncated",
+        )
+
+    def test_the_channel_is_page_aligned(self):
+        self.assertEqual(self.entries[0]["pdu_size"] % 4096, 0)
 
 
 @unittest.skipUnless(mujoco, "install mujoco to exercise the sensor")

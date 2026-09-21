@@ -15,7 +15,7 @@ trades displayed frames back for cadence.
 
 This asset does NOT start Conductor; livox-mid360s-hakoniwa-asset.py owns it.
 
-    python3 examples/sensors/livox_mid360s/read_point_cloud.py --config <pdudef.json>
+    python3 examples/sensors/livox_mid360s/read_point_cloud.py
 
 Mouse drags orbit, the wheel zooms, Q closes the window.
 """
@@ -23,7 +23,9 @@ Mouse drags orbit, the wheel zooms, Q closes the window.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import open3d as o3d
@@ -32,6 +34,9 @@ import hakopy
 from hakoniwa_pdu.impl.shm_communication_service import ShmCommunicationService
 from hakoniwa_pdu.pdu_manager import PduManager
 from hakoniwa_pdu.pdu_msgs.sensor_msgs.pdu_conv_PointCloud2 import pdu_to_py_PointCloud2
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_PDU_DEF = REPO_ROOT / "config/livox-mid360s-pdudef-compact.json"
 
 ASSET = "Mid360SReader"
 
@@ -52,7 +57,7 @@ def turbo(v: np.ndarray) -> np.ndarray:
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="Receive a Hakoniwa sensor_msgs/PointCloud2 PDU and show it with Open3D.")
-    ap.add_argument("--config", required=True, help="Hakoniwa pdudef.json")
+    ap.add_argument("--config", default=str(DEFAULT_PDU_DEF), help="Hakoniwa pdudef.json")
     ap.add_argument("--robot", default="Mid360S")
     ap.add_argument("--pdu-name", default="point_cloud")
     ap.add_argument("--max-frames", type=int, default=0, help="0 runs until the window closes")
@@ -62,6 +67,22 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--headless", action="store_true",
                     help="consume and report clouds without opening a window")
     return ap.parse_args()
+
+
+def finish(vis, stats) -> None:
+    """Leave the simulation from inside a callback.
+
+    hakopy offers a CONTROLLER asset no way to unregister: returning -1 from
+    on_simulation_step does not make hakopy.start() return, and by the time the
+    frame budget is spent the asset that owns Conductor may already have stopped
+    it, leaving this process blocked. Report, release the window, and go.
+    """
+    print(f"\nINFO: received {stats['received']} clouds, drew {stats['drawn']}, "
+          f"{stats['empty']} empty reads", flush=True)
+    if vis is not None:
+        vis.destroy_window()
+    sys.stdout.flush()
+    os._exit(0)
 
 
 def main() -> int:
@@ -113,13 +134,13 @@ def main() -> int:
             stats["drawn"] += 1
             if not vis.poll_events():
                 print("INFO: viewer window closed", flush=True)
-                return -1
+                finish(vis, stats)
             vis.update_renderer()
 
         if stats["received"] % 10 == 0:
             print(f"frame {stats['received']:>4}  {len(pts):>6,} pts", flush=True)
         if args.max_frames and stats["received"] >= args.max_frames:
-            return -1
+            finish(vis, stats)
         return 0
 
     callbacks = {
@@ -138,11 +159,9 @@ def main() -> int:
           flush=True)
     try:
         hakopy.start()
-    finally:
-        if vis is not None:
-            vis.destroy_window()
-    print(f"\nINFO: received {stats['received']} clouds, drew {stats['drawn']}, "
-          f"{stats['empty']} empty reads", flush=True)
+    except KeyboardInterrupt:
+        pass
+    finish(vis, stats)
     return 0
 
 

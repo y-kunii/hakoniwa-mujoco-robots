@@ -10,11 +10,13 @@ timing, and packing a scan into a ``sensor_msgs/PointCloud2`` PDU.
 It owns Conductor. Read the cloud back with ``read_point_cloud.py``, which must
 not start Conductor.
 
-    python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py \
-        --config <pdudef.json> \
-        --profile config/sensors/lidar/livox-mid360s.json \
-        --scene models/sensors/lidar_3d/livox-mid360s-sample.xml \
-        --pdu-size 385024
+Every path defaults to what this repository ships, so the example runs from the
+repository root with no arguments:
+
+    python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py
+
+A composition that sizes the channel itself, such as a Hakoniwa Business Pack
+Recipe, passes its own --config and --pdu-size instead.
 """
 
 from __future__ import annotations
@@ -33,6 +35,11 @@ from hakoniwa_pdu.pdu_manager import PduManager
 from hakoniwa_pdu.pdu_msgs.sensor_msgs.pdu_conv_PointCloud2 import py_to_pdu_PointCloud2
 from hakoniwa_pdu.pdu_msgs.sensor_msgs.pdu_pytype_PointCloud2 import PointCloud2
 from hakoniwa_pdu.pdu_msgs.sensor_msgs.pdu_pytype_PointField import PointField
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_PDU_DEF = REPO_ROOT / "config/livox-mid360s-pdudef-compact.json"
+DEFAULT_PROFILE = REPO_ROOT / "config/sensors/lidar/livox-mid360s.json"
+DEFAULT_SCENE = REPO_ROOT / "models/sensors/lidar_3d/livox-mid360s-sample.xml"
 
 ROBOT = "Mid360S"
 CHANNEL = "point_cloud"
@@ -122,15 +129,34 @@ def on_manual_timing_control(context):  # noqa: ARG001
     return 0
 
 
+def declared_channel_size(pdu_def: Path, robot: str, channel: str) -> int:
+    """The pdu_size a pdudef declares for one robot channel.
+
+    Resolves pdudef -> pdutypes the way the Hakoniwa runtime does, so the asset
+    budgets against exactly the channel the runtime will open.
+    """
+    definition = json.loads(pdu_def.read_text(encoding="utf-8"))
+    try:
+        types_id = next(r["pdutypes_id"] for r in definition["robots"] if r["name"] == robot)
+        types_rel = next(p["path"] for p in definition["paths"] if p["id"] == types_id)
+    except StopIteration:
+        raise SystemExit(f"{pdu_def}: no channel set for robot {robot!r}") from None
+    entries = json.loads((pdu_def.parent / types_rel).read_text(encoding="utf-8"))
+    for entry in entries:
+        if entry["name"] == channel:
+            return int(entry["pdu_size"])
+    raise SystemExit(f"{pdu_def.parent / types_rel}: no channel named {channel!r}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--config", required=True, help="Hakoniwa pdudef.json")
-    ap.add_argument("--sensor-root", default=str(Path(__file__).resolve().parents[3]),
+    ap.add_argument("--config", default=str(DEFAULT_PDU_DEF), help="Hakoniwa pdudef.json")
+    ap.add_argument("--sensor-root", default=str(REPO_ROOT),
                     help="repository root providing python/livox_mid360s_sensor.py")
-    ap.add_argument("--profile", required=True, help="lidar_3d profile JSON")
-    ap.add_argument("--scene", required=True, help="MJCF scene")
-    ap.add_argument("--pdu-size", type=int, required=True,
-                    help="must match pdu_size in the Recipe's pdutypes.json")
+    ap.add_argument("--profile", default=str(DEFAULT_PROFILE), help="lidar_3d profile JSON")
+    ap.add_argument("--scene", default=str(DEFAULT_SCENE), help="MJCF scene")
+    ap.add_argument("--pdu-size", type=int, default=None,
+                    help="channel bytes; read from the pdudef's pdutypes when omitted")
     ap.add_argument("--max-frames", type=int, default=0)
     ap.add_argument("--no-noise", action="store_true")
     args = ap.parse_args()
@@ -145,10 +171,15 @@ def main() -> int:
 
     profile = json.loads(Path(args.profile).read_text(encoding="utf-8"))
     point_step = int(profile["pdu_config"].get("point_step", 16))
-    budget = (args.pdu_size - ENVELOPE_BYTES) // point_step
+    pdu_size = args.pdu_size
+    if pdu_size is None:
+        # Read the channel the pdudef already declares rather than restating it
+        # here: a second copy of the size is what drifts.
+        pdu_size = declared_channel_size(Path(args.config), ROBOT, CHANNEL)
+    budget = (pdu_size - ENVELOPE_BYTES) // point_step
 
     state.update(
-        data=data, sensor=sensor, pdu_size=args.pdu_size, point_step=point_step,
+        data=data, sensor=sensor, pdu_size=pdu_size, point_step=point_step,
         max_points=budget, max_frames=args.max_frames,
         frame_rate=sensor.pattern.frame_rate, frames=0, last_bytes=0,
     )
@@ -156,7 +187,7 @@ def main() -> int:
     print(f"sensor root : {args.sensor_root}")
     print(f"profile     : {sensor.name}  pattern={sensor.pattern.kind}")
     print(f"scene       : {args.scene}")
-    print(f"channel     : {ROBOT}/{CHANNEL}  pdu_size={args.pdu_size:,}")
+    print(f"channel     : {ROBOT}/{CHANNEL}  pdu_size={pdu_size:,}")
     print(f"capacity    : {budget:,} points at point_step {point_step}", flush=True)
 
     pdu = PduManager()

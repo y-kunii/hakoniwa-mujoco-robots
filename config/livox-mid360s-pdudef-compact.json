@@ -1,0 +1,14 @@
+{
+  "paths": [
+    {
+      "id": "livox-mid360s-point-cloud",
+      "path": "livox-mid360s-pdutypes.json"
+    }
+  ],
+  "robots": [
+    {
+      "name": "Mid360S",
+      "pdutypes_id": "livox-mid360s-point-cloud"
+    }
+  ]
+}
