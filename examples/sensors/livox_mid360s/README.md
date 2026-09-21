@@ -111,7 +111,7 @@ Tables are not committed. See `scan_patterns/README.md`.
 ## Run
 
 Publisher and reader are separate Hakoniwa assets. The publisher owns Conductor;
-the reader must not start it. Use three terminals, as `color_camera` does.
+the reader must not start it. That takes three terminals.
 
 Both default to what this repository ships, so run them from the repository root
 with no arguments. `hakopy` and `hako-cmd` come from `hakoniwa-core-pro`; see the
