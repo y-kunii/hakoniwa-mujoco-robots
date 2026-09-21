@@ -38,3 +38,10 @@ logs
 *.exe
 *.out
 *.app
+
+# Scan-pattern tables for the lidar_3d 'table' pattern.
+# These are data you supply, not repository content: either a recording from
+# your own sensor or an export from a third party whose origin you can account
+# for. Generate one with python/livox_scan_pattern_tool.py.
+scan_patterns/*.npy
+scan_patterns/*.csv

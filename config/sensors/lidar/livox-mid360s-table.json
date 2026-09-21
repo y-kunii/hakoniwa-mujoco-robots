@@ -1,0 +1,70 @@
+{
+  "$schema": "../schema/lidar-3d.schema.json",
+  "spec": {
+    "type": "lidar_3d",
+    "name": "livox_mid360s_table",
+    "frame_id": "livox_mid360s",
+    "DetectionDistance": {
+      "Min": 100,
+      "Max": 100000
+    },
+    "DistanceAccuracy": [
+      {
+        "Range": {
+          "Min": 100,
+          "Max": 500
+        },
+        "Type": "independent",
+        "DistanceIndependentAccuracy": {
+          "StdDev": 0.04,
+          "NoiseDistribution": "Gaussian"
+        }
+      },
+      {
+        "Range": {
+          "Min": 500,
+          "Max": 100000
+        },
+        "Type": "independent",
+        "DistanceIndependentAccuracy": {
+          "StdDev": 0.02,
+          "NoiseDistribution": "Gaussian"
+        }
+      }
+    ],
+    "AngularAccuracy": 0.15,
+    "FieldOfView": {
+      "Horizontal": {
+        "Min": -180.0,
+        "Max": 180.0
+      },
+      "Vertical": {
+        "Min": -7.0,
+        "Max": 52.0
+      }
+    },
+    "ScanPattern": {
+      "Type": "table",
+      "PointRate": 200000,
+      "FrameRate": 10.0,
+      "NonRepetitive": true,
+      "TableFile": "../../../scan_patterns/livox-mid360s.npy",
+      "TableFormat": "npy_theta_phi_rad",
+      "TableProvenance": "Exported from mujoco-lidar scan_mode/mid360.npy with python/livox_scan_pattern_tool.py from-mujoco-lidar. Origin not documented upstream. UNVERIFIED against hardware; replace with a recording from the physical sensor before planning with its azimuth-dependent lobe."
+    }
+  },
+  "mjcf_binding": {
+    "config_style": "hakoniwa-sdf-like",
+    "runtime_source": "mjcf",
+    "source_body": "lidar_mount",
+    "source_site": "lidar_site",
+    "exclude_body": "lidar_mount"
+  },
+  "pdu_config": {
+    "pdu_name": "point_cloud",
+    "update_rate_hz": 10.0,
+    "message_type": "sensor_msgs/PointCloud2",
+    "max_points": 24000,
+    "point_step": 16
+  }
+}

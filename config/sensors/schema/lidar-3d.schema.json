@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hakoniwa.dev/schemas/lidar-3d.schema.json",
+  "title": "Hakoniwa 3D LiDAR sensor profile",
+  "description": "SDF-like but MJCF-resolved JSON config for 3D point-cloud LiDAR profiles used by Hakoniwa MuJoCo sensors. Unlike lidar-2d, a 3D profile describes a solid-angle field of view and a scan pattern rather than a single scan line. Distances are millimetres, angles are degrees, matching lidar-2d.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "mjcf_binding",
+    "pdu_config"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "spec": {
+      "$ref": "#/$defs/spec"
+    },
+    "mjcf_binding": {
+      "$ref": "#/$defs/mjcfBinding"
+    },
+    "pdu_config": {
+      "$ref": "#/$defs/pduConfig"
+    }
+  },
+  "$defs": {
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name",
+        "frame_id",
+        "DetectionDistance",
+        "DistanceAccuracy",
+        "FieldOfView",
+        "ScanPattern"
+      ],
+      "properties": {
+        "type": {
+          "const": "lidar_3d"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "DetectionDistance": {
+          "$ref": "#/$defs/distanceRange"
+        },
+        "DistanceAccuracy": {
+          "$ref": "#/$defs/distanceAccuracyArray"
+        },
+        "AngularAccuracy": {
+          "description": "Published 1 sigma angular accuracy in degrees. Informational; a simulator may ignore it.",
+          "type": "number",
+          "minimum": 0
+        },
+        "FieldOfView": {
+          "$ref": "#/$defs/fieldOfView"
+        },
+        "ScanPattern": {
+          "$ref": "#/$defs/scanPattern"
+        }
+      }
+    },
+    "distanceRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Min",
+        "Max"
+      ],
+      "properties": {
+        "Min": {
+          "description": "Millimetres. For a LiDAR this is the close-proximity blind zone.",
+          "type": "number",
+          "minimum": 0
+        },
+        "Max": {
+          "description": "Millimetres. Cutoff distance beyond which returns are discarded.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "distanceAccuracyArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/distanceAccuracy"
+      }
+    },
+    "independentAccuracy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "StdDev",
+        "NoiseDistribution"
+      ],
+      "properties": {
+        "StdDev": {
+          "description": "Metres, matching lidar-2d. Note the unit differs from Range, which is millimetres.",
+          "type": "number",
+          "minimum": 0
+        },
+        "Precision": {
+          "type": "number",
+          "minimum": 0
+        },
+        "NoiseDistribution": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "dependentAccuracy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Percentage",
+        "NoiseDistribution"
+      ],
+      "properties": {
+        "Percentage": {
+          "type": "number",
+          "minimum": 0
+        },
+        "Precision": {
+          "type": "number",
+          "minimum": 0
+        },
+        "NoiseDistribution": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "distanceAccuracy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Range",
+        "Type"
+      ],
+      "properties": {
+        "Range": {
+          "$ref": "#/$defs/distanceRange"
+        },
+        "Type": {
+          "enum": [
+            "independent",
+            "dependent"
+          ]
+        },
+        "DistanceIndependentAccuracy": {
+          "$ref": "#/$defs/independentAccuracy"
+        },
+        "DistanceDependentAccuracy": {
+          "$ref": "#/$defs/dependentAccuracy"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "Type": {
+                "const": "independent"
+              }
+            },
+            "required": [
+              "Type"
+            ]
+          },
+          "then": {
+            "required": [
+              "DistanceIndependentAccuracy"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "Type": {
+                "const": "dependent"
+              }
+            },
+            "required": [
+              "Type"
+            ]
+          },
+          "then": {
+            "required": [
+              "DistanceDependentAccuracy"
+            ]
+          }
+        }
+      ]
+    },
+    "angleSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Min",
+        "Max"
+      ],
+      "properties": {
+        "Min": {
+          "description": "Degrees.",
+          "type": "number"
+        },
+        "Max": {
+          "description": "Degrees.",
+          "type": "number"
+        }
+      }
+    },
+    "fieldOfView": {
+      "description": "Solid-angle coverage. Horizontal is azimuth about the sensor Z axis; Vertical is elevation from the sensor XY plane, positive upwards. A published vertical FOV is often asymmetric.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Horizontal",
+        "Vertical"
+      ],
+      "properties": {
+        "Horizontal": {
+          "$ref": "#/$defs/angleSpan"
+        },
+        "Vertical": {
+          "$ref": "#/$defs/angleSpan"
+        }
+      }
+    },
+    "scanPattern": {
+      "description": "How rays are distributed inside the field of view over time. 'uniform' is derived from the declared FOV alone and repeats statistically every frame. 'table' replays a recorded or measured ray-angle sequence, which is how a non-repetitive scanning LiDAR fills in coverage as observation time grows.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Type",
+        "PointRate",
+        "FrameRate"
+      ],
+      "properties": {
+        "Type": {
+          "enum": [
+            "uniform",
+            "table"
+          ]
+        },
+        "PointRate": {
+          "description": "Emitted rays per second. Rays per frame is PointRate / FrameRate.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "FrameRate": {
+          "description": "Hertz. One published point cloud per frame.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "NonRepetitive": {
+          "description": "True when consecutive frames use different ray directions so that accumulated coverage keeps improving. Informational for 'uniform'; for 'table' it is a property of the table itself.",
+          "type": "boolean"
+        },
+        "TableFile": {
+          "description": "Path to the ray-angle table, relative to this config file.",
+          "type": "string",
+          "minLength": 1
+        },
+        "TableFormat": {
+          "description": "Layout of TableFile. 'npy_theta_phi_rad' is an (N, 2) float32 NumPy array of (azimuth, elevation) in radians, stored in acquisition order.",
+          "enum": [
+            "npy_theta_phi_rad",
+            "csv_theta_phi_deg"
+          ]
+        },
+        "TableProvenance": {
+          "description": "Where the table came from. State this even when it is inconvenient: a table of unknown origin must not be presented as measured hardware behaviour.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "Type": {
+                "const": "table"
+              }
+            },
+            "required": [
+              "Type"
+            ]
+          },
+          "then": {
+            "required": [
+              "TableFile",
+              "TableFormat"
+            ]
+          }
+        }
+      ]
+    },
+    "mjcfBinding": {
+      "allOf": [
+        {
+          "$ref": "https://hakoniwa.dev/schemas/component-common.schema.json#/$defs/mjcfBindingBase"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_body"
+          ],
+          "properties": {
+            "config_style": {
+              "const": "hakoniwa-sdf-like"
+            },
+            "runtime_source": {
+              "const": "mjcf"
+            },
+            "parent_body": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source_body": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source_site": {
+              "description": "Optional MJCF site giving the exact ray origin and orientation. When omitted the source_body frame is used, matching lidar-2d.",
+              "type": "string",
+              "minLength": 1
+            },
+            "exclude_body": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frame_id_override": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "pduConfig": {
+      "description": "Mirrors component-common requiredPduConfig and adds the point-cloud capacity fields. It is declared inline rather than by $ref because the shared definition sets additionalProperties false, which no allOf composition can widen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pdu_name",
+        "update_rate_hz",
+        "message_type"
+      ],
+      "properties": {
+        "pdu_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "update_rate_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "message_type": {
+          "const": "sensor_msgs/PointCloud2"
+        },
+        "max_points": {
+          "description": "Point capacity of the PDU channel. The Hakoniwa PDU for sensor_msgs/PointCloud2 is fixed size, so a producer must know its budget. Required channel size is 760 bytes of envelope plus max_points times point_step.",
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "point_step": {
+          "description": "Bytes per point in the PointCloud2 data blob.",
+          "type": "integer",
+          "exclusiveMinimum": 0
+        }
+      }
+    }
+  }
+}
