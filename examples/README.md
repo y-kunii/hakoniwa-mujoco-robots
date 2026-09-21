@@ -25,6 +25,13 @@ Available examples:
   - `i/k/j/l` camera movement
   - left / center / right RGB sample printout
   - PNG output for quick visual inspection
+- [Livox Mid-360S 3D LiDAR Example](sensors/livox_mid360s/README.md)
+  - 3D scan pattern cast with `mj_multiRay` from a MuJoCo site
+  - datasheet field of view, range gate and per-band accuracy from JSON
+  - near and far objects, a pole and two walls for occlusion shadows
+  - `sensor_msgs/PointCloud2` PDU publisher and Python reader
+  - live Open3D rendering of the received cloud
+  - Python only, so no CMake build is needed
 
 These examples are intended to complement the larger TurtleBot3 and forklift demos described in the top-level README.
 

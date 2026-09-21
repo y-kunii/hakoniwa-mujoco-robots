@@ -25,6 +25,7 @@ Use these entry points first. The rest of this README includes advanced notes an
 | Browse documentation by category | [docs/README.md](docs/README.md) |
 | Try small sensor examples | [examples/sensors/README.md](examples/sensors/README.md) |
 | Try color-camera PNG capture | [examples/sensors/color_camera/README.md](examples/sensors/color_camera/README.md) |
+| Try 3D LiDAR point cloud output | [examples/sensors/livox_mid360s/README.md](examples/sensors/livox_mid360s/README.md) |
 | Try MJCF position / velocity actuators | [examples/actuators/joint/README.md](examples/actuators/joint/README.md) |
 | Try Unitree Go1 MJCF joint I/O | [examples/actuators/unitree_go1/README.md](examples/actuators/unitree_go1/README.md) |
 | Learn the sensor/actuator workflow | [docs/guide/sensor-actuator-user.md](docs/guide/sensor-actuator-user.md) |
@@ -39,6 +40,7 @@ Current standalone examples:
 ```text
 examples/sensors/ultrasonic/        ultrasonic range sensor + viewer ray
 examples/sensors/color_camera/      RGB camera sensor + PNG capture
+examples/sensors/livox_mid360s/     Livox Mid-360S 3D LiDAR + PointCloud2 PDU (Python)
 examples/actuators/joint/           MuJoCo position / velocity joint actuators
 examples/actuators/unitree_go1/     Unitree Go1 MJCF joint I/O smoke
 ```
@@ -592,6 +594,13 @@ python python/lidar_visualizer.py
 ./src/cmake-build/examples/sensors/color_camera/color-camera-example
 ```
 
+- Livox Mid-360S 3D LiDAR example. Unlike the examples above it needs no CMake build, and it is two Hakoniwa assets, so it wants three terminals:
+```bash
+python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py   # publisher, owns Conductor
+python3 examples/sensors/livox_mid360s/read_point_cloud.py               # reader, Open3D window
+hako-cmd start                                                           # once both report WAITING
+```
+
 - Joint actuator example (`a/d` changes position target, `j/l` changes velocity target in the MuJoCo viewer):
 ```bash
 ./src/cmake-build/examples/actuators/joint/joint-actuator-example
@@ -683,6 +692,7 @@ Current sensor areas:
 - camera / depth / RGBD / multicamera
 - color camera PNG example
 - 2D LiDAR
+- 3D LiDAR (Livox Mid-360S, Python, `sensor_msgs/PointCloud2`)
 - ultrasonic range
 - IMU
 - joint state
@@ -696,6 +706,7 @@ The standalone examples are intentionally smaller than the TurtleBot3 and forkli
 - [examples/sensors/README.md](examples/sensors/README.md)
 - [examples/sensors/ultrasonic/README.md](examples/sensors/ultrasonic/README.md)
 - [examples/sensors/color_camera/README.md](examples/sensors/color_camera/README.md)
+- [examples/sensors/livox_mid360s/README.md](examples/sensors/livox_mid360s/README.md)
 - [examples/actuators/README.md](examples/actuators/README.md)
 - [examples/actuators/joint/README.md](examples/actuators/joint/README.md)
 
@@ -853,6 +864,9 @@ The top-level README keeps only the entry points, setup, and sample commands. Us
 - `examples/README.md`: standalone example index
 - `examples/sensors/ultrasonic/README.md`: ultrasonic sensor example
 - `examples/sensors/color_camera/README.md`: color camera PNG example
+- `examples/sensors/livox_mid360s/README.md`: Livox Mid-360S 3D LiDAR point cloud example
+- `python/livox_mid360s_sensor.py`: Livox Mid-360S 3D LiDAR sensor, MuJoCo and NumPy only
+- `python/livox_scan_pattern_tool.py`: build and inspect 3D LiDAR scan-pattern tables
 - `examples/actuators/joint/README.md`: MJCF-native position / velocity joint actuator example
 - `src/sensors/`: reusable sensor components
 - `include/hakoniwa/pdu/`: PDU conversion and endpoint adapter helpers
@@ -863,6 +877,8 @@ The top-level README keeps only the entry points, setup, and sample commands. Us
 - `config/sensors/lidar/urg-04lx-ug01.json`: Hokuyo URG-04LX-UG01-like cleaner LiDAR profile
 - `config/sensors/ultrasonic/lego-spike-distance-sensor.json`: ultrasonic range sensor profile used by the standalone example
 - `config/sensors/color_camera/simple-color-camera.json`: color camera profile used by the PNG example
+- `config/sensors/lidar/livox-mid360s.json`: Livox Mid-360S 3D LiDAR profile, uniform scan pattern
+- `config/sensors/lidar/livox-mid360s-table.json`: same sensor replaying a recorded scan-pattern table
 
 ---
 

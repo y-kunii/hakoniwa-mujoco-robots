@@ -24,6 +24,7 @@
 | docs を分類から探す | [docs/README.md](docs/README.md) |
 | 小さい sensor example を試す | [examples/sensors/README.md](examples/sensors/README.md) |
 | color-camera の PNG capture を試す | [examples/sensors/color_camera/README.md](examples/sensors/color_camera/README.md) |
+| 3D LiDAR の点群出力を試す | [examples/sensors/livox_mid360s/README.md](examples/sensors/livox_mid360s/README.md) |
 | camera sensor の設定手順を理解する | [docs/tutorial/camera-sensor-ja.md](docs/tutorial/camera-sensor-ja.md) |
 | MJCF の position / velocity actuator を試す | [examples/actuators/joint/README.md](examples/actuators/joint/README.md) |
 | Unitree Go1 MJCF の joint I/O を試す | [examples/actuators/unitree_go1/README.md](examples/actuators/unitree_go1/README.md) |
@@ -39,6 +40,7 @@
 ```text
 examples/sensors/ultrasonic/        ultrasonic range sensor + viewer ray
 examples/sensors/color_camera/      RGB camera sensor + PNG capture
+examples/sensors/livox_mid360s/     Livox Mid-360S 3D LiDAR + PointCloud2 PDU (Python)
 examples/actuators/joint/           MuJoCo position / velocity joint actuators
 examples/actuators/unitree_go1/     Unitree Go1 MJCF joint I/O smoke
 ```
@@ -462,6 +464,13 @@ python python/lidar_visualizer.py
 ./src/cmake-build/examples/sensors/color_camera/color-camera-example
 ```
 
+- Livox Mid-360S 3D LiDAR example。上の例と違い Python なので CMake build は不要です。Hakoniwa asset が 2 つなので terminal を 3 つ使います:
+```bash
+python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py   # publisher、Conductor を持つ
+python3 examples/sensors/livox_mid360s/read_point_cloud.py               # reader、Open3D 表示
+hako-cmd start                                                           # 両方が WAITING と出てから
+```
+
 - joint actuator example（MuJoCo viewer 上で `a/d` が position target、`j/l` が velocity target）:
 ```bash
 ./src/cmake-build/examples/actuators/joint/joint-actuator-example
@@ -552,6 +561,7 @@ PDU converter / adapter は `include/hakoniwa/pdu/` にあります。
 - camera / depth / RGBD / multicamera
 - color camera PNG example
 - 2D LiDAR
+- 3D LiDAR（Livox Mid-360S、Python、`sensor_msgs/PointCloud2`）
 - ultrasonic range
 - IMU
 - joint state
@@ -565,6 +575,7 @@ standalone examples は、TurtleBot3 や forklift の大きなデモより小さ
 - [examples/sensors/README.md](examples/sensors/README.md)
 - [examples/sensors/ultrasonic/README.md](examples/sensors/ultrasonic/README.md)
 - [examples/sensors/color_camera/README.md](examples/sensors/color_camera/README.md)
+- [examples/sensors/livox_mid360s/README.md](examples/sensors/livox_mid360s/README.md)
 - [examples/actuators/README.md](examples/actuators/README.md)
 - [examples/actuators/joint/README.md](examples/actuators/joint/README.md)
 

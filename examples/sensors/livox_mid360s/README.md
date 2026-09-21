@@ -115,7 +115,15 @@ the reader must not start it. Use three terminals, as `color_camera` does.
 
 Both default to what this repository ships, so run them from the repository root
 with no arguments. `hakopy` and `hako-cmd` come from `hakoniwa-core-pro`; see the
-top-level README for that install.
+top-level README for that install. The rest come from pip:
+
+```bash
+python3 -m pip install mujoco numpy hakoniwa-pdu open3d
+```
+
+`open3d` is only needed to draw. The sensor and the publisher do not use it, and
+the reader's `--headless` mode still imports it, so skip the reader entirely if
+you would rather not install it.
 
 Terminal A, the publisher:
 
