@@ -7,7 +7,8 @@ The goal is to make the `lidar_3d` sensor profile easy to understand from the
 example code:
 
 - the model contains a sensor on a short post, near and far objects, and two walls
-- the config separates `spec`, `mjcf_binding` and `pdu_config`, as `lidar_2d` does
+- the config separates `spec`, `mjcf_binding` and `pdu_config`, like the 2D LiDAR
+  profiles already in `config/sensors/lidar/`
 - `LivoxMid360SSensor` is created in `livox-mid360s-hakoniwa-asset.py`
 - the constructor applies the JSON profile: field of view, range gate, accuracy bands
 - `LivoxMid360SSensor.scan()` casts one frame with `mj_multiRay`
@@ -79,9 +80,14 @@ produce occlusion shadows.
 
 ## Sensor Config
 
-A `lidar_3d` profile follows `lidar_2d`: distances in millimetres, angles in
-degrees, the same `DistanceAccuracy` bands, the same `mjcf_binding`. It replaces
-the 2D `AngleRange` with a solid-angle `FieldOfView` plus a `ScanPattern`.
+`lidar_3d` is a new value for `spec.type`. Its sibling `lidar_2d` is what the
+shipped 2D profiles use, `lds-01.json` and `urg-04lx-ug01.json` among them, and
+`lidar_3d` keeps as much of it as still applies: distances in millimetres,
+angles in degrees, the same `DistanceAccuracy` band structure.
+
+Two things change. The 2D `AngleRange` becomes a solid-angle `FieldOfView` plus
+a `ScanPattern`. And `mjcf_binding` gains `source_site`, because a 3D scan is
+cast from a MuJoCo site rather than from a body origin.
 
 ```json
 "FieldOfView": {
