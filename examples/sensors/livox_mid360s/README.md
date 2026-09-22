@@ -58,6 +58,10 @@ include/hakoniwa/pdu/adapter/sensor_msgs/point_cloud2.hpp
 
 ## Sensor API
 
+The sensor exists twice, once per language. The Python API is below;
+`include/sensors/lidar/lidar_3d_sensor.hpp` is the C++ one.
+
+
 ```python
 from livox_mid360s_sensor import LivoxMid360SSensor
 
@@ -142,6 +146,20 @@ python3 -m pip install mujoco numpy hakoniwa-pdu open3d
 `open3d` is only needed to draw. The sensor and the publisher do not use it, and
 the reader's `--headless` mode still imports it, so skip the reader entirely if
 you would rather not install it.
+
+The Python publisher and the reader need no build. The C++ publisher does, and
+it needs what every C++ target here needs: the submodules, and `hakoniwa-core-pro`
+and `hakoniwa-pdu-endpoint` installed. `./doctor.bash` reports what is missing,
+and the top-level README has the install steps.
+
+```bash
+git submodule update --init --recursive
+cmake -S src -B src/cmake-build -DCMAKE_BUILD_TYPE=Release
+cmake --build src/cmake-build --target livox-mid360s-hakoniwa-asset -j"$(nproc)"
+```
+
+`HAKONIWA_CORE_ROOT` and `HAKONIWA_PDU_ENDPOINT_ROOT` point CMake at those two
+packages when they are not under `/usr/local/hakoniwa`.
 
 Terminal A, the publisher. The C++ one reads the manifest in `config/assets/`:
 
