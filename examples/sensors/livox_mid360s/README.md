@@ -21,6 +21,7 @@ examples/sensors/livox_mid360s/
   README.md
   livox-mid360s-hakoniwa-asset.py
   read_point_cloud.py
+  scene_view.py                    MuJoCo scene plus cloud, for the publisher
   point_colors.py                  range palette shared by both views
 
 python/
@@ -155,7 +156,7 @@ hako-cmd start
 There are two windows, and which one answers a question depends on what the
 question is.
 
-`--viewer` on the publisher draws the returns onto the MuJoCo scene:
+`--viewer` on the publisher draws the returns onto the scene:
 
 ```bash
 python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py --viewer
@@ -170,52 +171,29 @@ reader receives the cloud alone, with no MuJoCo model to draw it against.
 view of what a consumer downstream of the PDU actually gets, with no scene to
 fill in the gaps.
 
-Every point is one MuJoCo geom, so drawing costs roughly 9 ms per frame at 5,000
-points and 44 ms at 24,000. Each geom is initialised once and only moved and
-recoloured afterwards, which measured about 40 percent cheaper than rebuilding
-it. `--viewer-decimate N` draws every Nth point when that is still too much.
+Both windows are Open3D. MuJoCo's own passive viewer is the obvious way to draw
+on a MuJoCo scene and was tried first, through several rounds: it rendered, but
+would not reliably take mouse input on the machine this was developed on, so the
+overlay moved to Open3D, which does. Nothing is lost. MuJoCo is used here as a
+ray caster and a scene description, not as a renderer and not as a physics
+engine; `mj_forward` and `mj_multiRay` are the only simulation calls, and
+nothing steps. `scene_view.py` rebuilds the eleven scene primitives as Open3D
+meshes once, taking each colour from its MJCF material, and only the cloud
+changes after that.
 
-`--viewer-point-size` sets the drawn radius, and the default of 0.06 m is chosen
-for the scale of this scene, which spans about 75 m. A radius small enough to be
-physically honest is about one pixel here, which reads as an empty viewer rather
-than as a point cloud. The points are also drawn self-lit, because a shaded
-point takes the scene's lighting and the near, dark end of the range palette
-then disappears into the dark floor. Both are display choices; neither changes
-what is published.
-
-Closing the MuJoCo window stops the publisher, and with it the simulation, since
-the publisher owns Conductor.
+`--viewer-decimate N` draws every Nth point, and `--viewer-point-size` sets the
+drawn size in pixels.
 
 `--viewer` also paces the run to the wall clock, and says so when it starts.
 Without it the publisher runs as fast as the simulation allows: `hakopy.usleep`
 advances simulation time and returns at once rather than waiting in real time,
-and it does not release the GIL, so the timing loop spins and the viewer's own
-thread never runs. The window then freezes and the drawn cloud stops changing,
-which looks like the overlay is broken. Sleeping the rest of each frame in real
-time gives that thread its turn. A run watched this way takes as long as the
-simulated time it covers; without `--viewer` nothing is paced.
+and it does not release the GIL, so the timing loop spins and nothing else on
+the process gets a turn. Sleeping the rest of each frame in real time fixes
+that. A run watched this way takes as long as the simulated time it covers;
+without `--viewer` nothing is paced.
 
-Paths can be overridden. A composition that sizes the channel itself, such as a
-Hakoniwa Business Pack Recipe, passes its own `--config` and `--pdu-size`:
-
-```bash
-python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py \
-    --config <pdudef.json> \
-    --profile config/sensors/lidar/livox-mid360s.json \
-    --scene models/sensors/lidar_3d/livox-mid360s-sample.xml \
-    --pdu-size 385024
-```
-
-## Example Output
-
-```text
-sensor root : /path/to/hakoniwa-mujoco-robots
-profile     : livox_mid360s  pattern=uniform
-channel     : Mid360S/point_cloud  pdu_size=385,024
-capacity    : 24,016 points at point_step 16
-INFO: registered. WAITING for hako-cmd start
-      100000 us  frame    1   5,070 pts   81,880 B
-```
+Closing either window stops its asset. Closing the publisher's stops the
+simulation with it, since the publisher owns Conductor.
 
 ## Hakoniwa PDU Publisher / Reader
 

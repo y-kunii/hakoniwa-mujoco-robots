@@ -15,9 +15,9 @@ repository root with no arguments:
 
     python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py
 
-Pass --viewer to watch the returns land on the scene in a MuJoCo viewer. That
-is the only place the two can be seen together: read_point_cloud.py receives
-the cloud without the model that produced it.
+Pass --viewer to watch the returns land on the scene. That is the only place
+the two can be seen together: read_point_cloud.py receives the cloud without
+the model that produced it.
 
 A composition that sizes the channel itself, such as a Hakoniwa Business Pack
 Recipe, passes its own --config and --pdu-size instead.
@@ -36,14 +36,13 @@ import numpy as np
 
 import hakopy
 import mujoco
-import mujoco.viewer
 from hakoniwa_pdu.impl.shm_communication_service import ShmCommunicationService
 from hakoniwa_pdu.pdu_manager import PduManager
 from hakoniwa_pdu.pdu_msgs.sensor_msgs.pdu_conv_PointCloud2 import py_to_pdu_PointCloud2
 from hakoniwa_pdu.pdu_msgs.sensor_msgs.pdu_pytype_PointCloud2 import PointCloud2
 from hakoniwa_pdu.pdu_msgs.sensor_msgs.pdu_pytype_PointField import PointField
 
-from point_colors import by_range
+from scene_view import SceneView
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_PDU_DEF = REPO_ROOT / "config/livox-mid360s-pdudef-compact.json"
@@ -59,75 +58,6 @@ FLOAT32 = 7
 ENVELOPE_BYTES = 760
 
 state: dict = {}
-
-
-class ViewerOverlay:
-    """Draws the returns into the MuJoCo viewer, one sphere geom per point.
-
-    The publisher is the only side that can do this: the reader receives the
-    cloud alone and has no MuJoCo model to draw it against. Seeing the points
-    on the scene is what makes an occlusion shadow readable.
-
-    mjv_initGeom on every point costs about 44 ms at 24,000 points, enough to
-    eat a 100 ms frame. Each geom is initialised once and only its position and
-    colour are written afterwards, which measured roughly 40 percent cheaper.
-    """
-
-    def __init__(self, model, data, radius: float, decimate: int):
-        self.decimate = max(1, decimate)
-        self.radius = radius
-        self.viewer = mujoco.viewer.launch_passive(model, data)
-        self.capacity = 0
-        self._size = np.array([radius, 0.0, 0.0])
-        self._identity = np.eye(3).flatten()
-
-    def _grow(self, n: int) -> None:
-        scene = self.viewer.user_scn
-        limit = min(n, scene.maxgeom)
-        white = np.ones(4, dtype=np.float32)
-        for i in range(self.capacity, limit):
-            geom = scene.geoms[i]
-            mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_SPHERE,
-                                self._size, np.zeros(3), self._identity, white)
-            # Self-lit. A shaded point takes the scene's lighting, which on a
-            # dark floor leaves the near, dark end of the range palette
-            # indistinguishable from the floor it is lying on.
-            geom.emission = 1.0
-        self.capacity = max(self.capacity, limit)
-
-    def update(self, points: np.ndarray, distances: np.ndarray,
-               origin: np.ndarray, rotation: np.ndarray) -> bool:
-        """Draw one frame. False once the window has been closed."""
-        if not self.viewer.is_running():
-            return False
-        points = points[::self.decimate]
-        distances = distances[::self.decimate]
-        world = points @ rotation.T + origin
-        colors = by_range(distances)
-
-        scene = self.viewer.user_scn
-        n = min(len(world), scene.maxgeom)
-        self._grow(n)
-        with self.viewer.lock():
-            for i in range(n):
-                geom = scene.geoms[i]
-                geom.pos[:] = world[i]
-                geom.rgba[:3] = colors[i]
-            scene.ngeom = n
-        self.viewer.sync()
-        return True
-
-    def close(self) -> None:
-        """Close the window and leave the process.
-
-        Measured here: closing is instant and the viewer's thread is a daemon,
-        yet the interpreter still dies during shutdown with the GLFW thread
-        loaded. Skip that shutdown rather than end a clean run on a crash.
-        """
-        self.viewer.close()
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(0)
 
 
 def build_cloud(points: np.ndarray, stamp_ns: int, frame_id: str, step: int) -> PointCloud2:
@@ -162,10 +92,10 @@ def publish_frame() -> bool:
         dropped = len(pts) - state["max_points"]
         pts = pts[: state["max_points"]]
 
-    overlay = state.get("overlay")
-    if overlay is not None:
+    view = state.get("view")
+    if view is not None:
         origin, rotation = state["sensor"].origin(state["data"])
-        if not overlay.update(scan.points, scan.distances, origin, rotation):
+        if not view.update(scan.points, scan.distances, origin, rotation):
             print("INFO: viewer window closed; stopping", flush=True)
             return False
 
@@ -202,7 +132,7 @@ def on_manual_timing_control(context):  # noqa: ARG001
     print("INFO: simulation running; publishing point clouds", flush=True)
     step_usec = int(1_000_000 / state["frame_rate"])
     period = 1.0 / state["frame_rate"]
-    watched = state.get("overlay") is not None
+    watched = state.get("view") is not None
     if watched:
         print(f"INFO: pacing to wall clock at {state['frame_rate']:.0f} Hz for the viewer",
               flush=True)
@@ -265,10 +195,9 @@ def main() -> int:
     ap.add_argument("--max-frames", type=int, default=0)
     ap.add_argument("--no-noise", action="store_true")
     ap.add_argument("--viewer", action="store_true",
-                    help="show the returns on the scene in a MuJoCo viewer")
-    ap.add_argument("--viewer-point-size", type=float, default=0.06,
-                    help="drawn point radius in metres; this scene spans about "
-                         "75 m, where 0.02 is roughly one pixel")
+                    help="show the returns on the scene in an Open3D window")
+    ap.add_argument("--viewer-point-size", type=float, default=2.5,
+                    help="drawn point size in pixels")
     ap.add_argument("--viewer-decimate", type=int, default=1,
                     help="draw every Nth point; raise it if drawing costs too much")
     args = ap.parse_args()
@@ -302,10 +231,10 @@ def main() -> int:
     print(f"channel     : {ROBOT}/{CHANNEL}  pdu_size={pdu_size:,}")
     print(f"capacity    : {budget:,} points at point_step {point_step}")
     if args.viewer:
-        state["overlay"] = ViewerOverlay(model, data, args.viewer_point_size,
-                                         args.viewer_decimate)
+        state["view"] = SceneView(model, data, args.viewer_point_size,
+                                  args.viewer_decimate)
         note = f", every {args.viewer_decimate} points" if args.viewer_decimate > 1 else ""
-        print(f"viewer      : on, radius {args.viewer_point_size} m{note}")
+        print(f"viewer      : on, point size {args.viewer_point_size}{note}")
     print("", end="", flush=True)
 
     pdu = PduManager()
@@ -330,8 +259,13 @@ def main() -> int:
     print("INFO: registered. WAITING for hako-cmd start", flush=True)
     hakopy.start()
     hakopy.conductor_stop()
-    if state.get("overlay") is not None:
-        state["overlay"].close()
+    view = state.get("view")
+    if view is not None:
+        view.close()
+        # Same reason read_point_cloud.py exits this way: the interpreter dies
+        # during shutdown with a GL window loaded.
+        sys.stdout.flush()
+        os._exit(0)
     return 0
 
 
