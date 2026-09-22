@@ -17,6 +17,7 @@ add_library(
     imu/imu_sensor.cpp
     joint_state/joint_state_sensor.cpp
     lidar/lidar_2d_sensor.cpp
+    lidar/lidar_3d_sensor.cpp
     noise/range_noise.cpp
     noise/axis_noise.cpp
     odometry/odometry_sensor.cpp
@@ -87,6 +88,10 @@ if(HAKO_BUILD_SENSOR_TESTS)
         ${PROJECT_ROOT_DIR}/tests/sensors/imu/unit/imu_body_frame_velocity_test.cpp
     )
     hako_add_sensor_test(
+        lidar_3d_sensor_test
+        ${PROJECT_ROOT_DIR}/tests/sensors/lidar/unit/lidar_3d_sensor_test.cpp
+    )
+    hako_add_sensor_test(
         ultrasonic_config_loader_test
         ${PROJECT_ROOT_DIR}/tests/sensors/ultrasonic/unit/ultrasonic_config_loader_test.cpp
     )
@@ -120,10 +125,16 @@ if(HAKO_BUILD_SENSOR_TESTS)
             ultrasonic_measurement_test
     )
     add_custom_target(
+        lidar_unit_tests
+        DEPENDS
+            lidar_3d_sensor_test
+    )
+    add_custom_target(
         sensor_unit_tests
         DEPENDS
             camera_unit_tests
             imu_unit_tests
+            lidar_unit_tests
             ultrasonic_unit_tests
     )
     add_custom_target(
@@ -133,6 +144,7 @@ if(HAKO_BUILD_SENSOR_TESTS)
         COMMAND $<TARGET_FILE:camera_rgba_color_test>
         COMMAND $<TARGET_FILE:depth_encoding_test>
         COMMAND $<TARGET_FILE:imu_body_frame_velocity_test>
+        COMMAND $<TARGET_FILE:lidar_3d_sensor_test>
         COMMAND $<TARGET_FILE:ultrasonic_config_loader_test>
         COMMAND $<TARGET_FILE:ultrasonic_range_pdu_converter_test>
         COMMAND $<TARGET_FILE:ultrasonic_measurement_test>
