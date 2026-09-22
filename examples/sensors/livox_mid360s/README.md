@@ -186,6 +186,15 @@ what is published.
 Closing the MuJoCo window stops the publisher, and with it the simulation, since
 the publisher owns Conductor.
 
+`--viewer` also paces the run to the wall clock, and says so when it starts.
+Without it the publisher runs as fast as the simulation allows: `hakopy.usleep`
+advances simulation time and returns at once rather than waiting in real time,
+and it does not release the GIL, so the timing loop spins and the viewer's own
+thread never runs. The window then freezes and the drawn cloud stops changing,
+which looks like the overlay is broken. Sleeping the rest of each frame in real
+time gives that thread its turn. A run watched this way takes as long as the
+simulated time it covers; without `--viewer` nothing is paced.
+
 Paths can be overridden. A composition that sizes the channel itself, such as a
 Hakoniwa Business Pack Recipe, passes its own `--config` and `--pdu-size`:
 

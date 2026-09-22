@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -200,11 +201,31 @@ def on_reset(context):  # noqa: ARG001
 def on_manual_timing_control(context):  # noqa: ARG001
     print("INFO: simulation running; publishing point clouds", flush=True)
     step_usec = int(1_000_000 / state["frame_rate"])
+    period = 1.0 / state["frame_rate"]
+    watched = state.get("overlay") is not None
+    if watched:
+        print(f"INFO: pacing to wall clock at {state['frame_rate']:.0f} Hz for the viewer",
+              flush=True)
+    deadline = time.perf_counter()
     while True:
         if not publish_frame():
             break
         if not hakopy.usleep(step_usec):
             break
+        if watched:
+            # hakopy.usleep advances simulation time and returns at once; it does
+            # not wait in wall clock and does not release the GIL. Left alone the
+            # loop spins flat out and the viewer's thread never runs, so the
+            # window freezes and the drawn cloud stops changing. Pace to wall
+            # clock instead, with a sleep that does release the GIL. This makes
+            # the run real time rather than as-fast-as-possible, which is the
+            # point of watching it.
+            deadline += period
+            remaining = deadline - time.perf_counter()
+            if remaining > 0:
+                time.sleep(remaining)
+            else:
+                deadline = time.perf_counter()
         if state["max_frames"] and state["frames"] >= state["max_frames"]:
             print(f"INFO: reached --max-frames {state['max_frames']}", flush=True)
             break
