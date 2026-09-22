@@ -85,8 +85,13 @@ class ViewerOverlay:
         limit = min(n, scene.maxgeom)
         white = np.ones(4, dtype=np.float32)
         for i in range(self.capacity, limit):
-            mujoco.mjv_initGeom(scene.geoms[i], mujoco.mjtGeom.mjGEOM_SPHERE,
+            geom = scene.geoms[i]
+            mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_SPHERE,
                                 self._size, np.zeros(3), self._identity, white)
+            # Self-lit. A shaded point takes the scene's lighting, which on a
+            # dark floor leaves the near, dark end of the range palette
+            # indistinguishable from the floor it is lying on.
+            geom.emission = 1.0
         self.capacity = max(self.capacity, limit)
 
     def update(self, points: np.ndarray, distances: np.ndarray,
@@ -240,8 +245,9 @@ def main() -> int:
     ap.add_argument("--no-noise", action="store_true")
     ap.add_argument("--viewer", action="store_true",
                     help="show the returns on the scene in a MuJoCo viewer")
-    ap.add_argument("--viewer-point-size", type=float, default=0.02,
-                    help="drawn point radius in metres")
+    ap.add_argument("--viewer-point-size", type=float, default=0.06,
+                    help="drawn point radius in metres; this scene spans about "
+                         "75 m, where 0.02 is roughly one pixel")
     ap.add_argument("--viewer-decimate", type=int, default=1,
                     help="draw every Nth point; raise it if drawing costs too much")
     args = ap.parse_args()

@@ -173,8 +173,15 @@ fill in the gaps.
 Every point is one MuJoCo geom, so drawing costs roughly 9 ms per frame at 5,000
 points and 44 ms at 24,000. Each geom is initialised once and only moved and
 recoloured afterwards, which measured about 40 percent cheaper than rebuilding
-it. `--viewer-decimate N` draws every Nth point when that is still too much, and
-`--viewer-point-size` sets the drawn radius.
+it. `--viewer-decimate N` draws every Nth point when that is still too much.
+
+`--viewer-point-size` sets the drawn radius, and the default of 0.06 m is chosen
+for the scale of this scene, which spans about 75 m. A radius small enough to be
+physically honest is about one pixel here, which reads as an empty viewer rather
+than as a point cloud. The points are also drawn self-lit, because a shaded
+point takes the scene's lighting and the near, dark end of the range palette
+then disappears into the dark floor. Both are display choices; neither changes
+what is published.
 
 Closing the MuJoCo window stops the publisher, and with it the simulation, since
 the publisher owns Conductor.
