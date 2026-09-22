@@ -21,6 +21,7 @@ examples/sensors/livox_mid360s/
   README.md
   livox-mid360s-hakoniwa-asset.py
   read_point_cloud.py
+  point_colors.py                  range palette shared by both views
 
 python/
   livox_mid360s_sensor.py          the sensor itself, no Hakoniwa dependency
@@ -148,6 +149,35 @@ Terminal C, once both report `WAITING`:
 ```bash
 hako-cmd start
 ```
+
+## Two Views Of The Same Cloud
+
+There are two windows, and which one answers a question depends on what the
+question is.
+
+`--viewer` on the publisher draws the returns onto the MuJoCo scene:
+
+```bash
+python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py --viewer
+```
+
+This is the only place the cloud and the geometry that produced it appear
+together, which is what makes an occlusion shadow readable: the points stop, and
+the object that stopped them is right there. Only the publisher can do it. The
+reader receives the cloud alone, with no MuJoCo model to draw it against.
+
+`read_point_cloud.py` shows the cloud as a receiver sees it. That is the honest
+view of what a consumer downstream of the PDU actually gets, with no scene to
+fill in the gaps.
+
+Every point is one MuJoCo geom, so drawing costs roughly 9 ms per frame at 5,000
+points and 44 ms at 24,000. Each geom is initialised once and only moved and
+recoloured afterwards, which measured about 40 percent cheaper than rebuilding
+it. `--viewer-decimate N` draws every Nth point when that is still too much, and
+`--viewer-point-size` sets the drawn radius.
+
+Closing the MuJoCo window stops the publisher, and with it the simulation, since
+the publisher owns Conductor.
 
 Paths can be overridden. A composition that sizes the channel itself, such as a
 Hakoniwa Business Pack Recipe, passes its own `--config` and `--pdu-size`:

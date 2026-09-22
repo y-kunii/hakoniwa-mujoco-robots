@@ -30,6 +30,8 @@ from pathlib import Path
 import numpy as np
 import open3d as o3d
 
+from point_colors import by_range
+
 import hakopy
 from hakoniwa_pdu.impl.shm_communication_service import ShmCommunicationService
 from hakoniwa_pdu.pdu_manager import PduManager
@@ -39,20 +41,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_PDU_DEF = REPO_ROOT / "config/livox-mid360s-pdudef-compact.json"
 
 ASSET = "Mid360SReader"
-
-TURBO = np.array([
-    [0.19, 0.07, 0.23], [0.27, 0.35, 0.80], [0.10, 0.65, 0.93], [0.19, 0.87, 0.72],
-    [0.56, 0.99, 0.35], [0.87, 0.90, 0.22], [0.99, 0.65, 0.14], [0.92, 0.32, 0.05],
-    [0.60, 0.09, 0.02],
-])
-
-
-def turbo(v: np.ndarray) -> np.ndarray:
-    t = np.clip(v, 0, 1) * (len(TURBO) - 1)
-    i = np.clip(t.astype(int), 0, len(TURBO) - 2)
-    u = (t - i)[:, None]
-    return TURBO[i] * (1 - u) + TURBO[i + 1] * u
-
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
@@ -126,7 +114,7 @@ def main() -> int:
         if vis is not None and stats["received"] % args.render_every == 0:
             first = stats["drawn"] == 0
             pcd.points = o3d.utility.Vector3dVector(pts)
-            pcd.colors = o3d.utility.Vector3dVector(turbo(np.linalg.norm(pts, axis=1) / 25.0))
+            pcd.colors = o3d.utility.Vector3dVector(by_range(np.linalg.norm(pts, axis=1)))
             if first:
                 vis.add_geometry(pcd, reset_bounding_box=True)
             else:
