@@ -20,8 +20,8 @@ Two sources are supported.
     it is a hypothesis, not a measurement. Recorded as such in the report.
 
     python3 python/livox_scan_pattern_tool.py from-cloud recording.csv \\
-        --out scan_patterns/livox-mid360s.npy
-    python3 python/livox_scan_pattern_tool.py inspect scan_patterns/*.npy
+        --out config/sensors/lidar/scan_patterns/livox-mid360s.npy
+    python3 python/livox_scan_pattern_tool.py inspect config/sensors/lidar/scan_patterns/*.npy
 """
 
 from __future__ import annotations

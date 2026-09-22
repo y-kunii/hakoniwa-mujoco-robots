@@ -16,7 +16,7 @@ is the ray that produced it.
 
 ```bash
 python3 python/livox_scan_pattern_tool.py from-cloud recording.csv \
-    --out scan_patterns/livox-mid360s.npy --time-column 3
+    --out config/sensors/lidar/scan_patterns/livox-mid360s.npy --time-column 3
 ```
 
 Record in a space with reflective surfaces in most directions - rays that hit
@@ -35,7 +35,7 @@ Then state where it came from:
 
 ```bash
 python3 python/livox_scan_pattern_tool.py from-mujoco-lidar --model mid360 \
-    --out scan_patterns/livox-mid360s.npy
+    --out config/sensors/lidar/scan_patterns/livox-mid360s.npy
 ```
 
 That package ships its tables with no statement of how they were produced. A
@@ -46,7 +46,7 @@ The tool says so and suggests wording for `TableProvenance`.
 ## Checking a table
 
 ```bash
-python3 python/livox_scan_pattern_tool.py inspect scan_patterns/livox-mid360s.npy
+python3 python/livox_scan_pattern_tool.py inspect config/sensors/lidar/scan_patterns/livox-mid360s.npy
 ```
 
 Reports the azimuth and elevation envelope, whether entries are in acquisition

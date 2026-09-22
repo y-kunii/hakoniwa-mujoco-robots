@@ -48,7 +48,7 @@
       "PointRate": 200000,
       "FrameRate": 10.0,
       "NonRepetitive": true,
-      "TableFile": "../../../scan_patterns/livox-mid360s.npy",
+      "TableFile": "scan_patterns/livox-mid360s.npy",
       "TableFormat": "npy_theta_phi_rad",
       "TableProvenance": "Exported from mujoco-lidar scan_mode/mid360.npy with python/livox_scan_pattern_tool.py from-mujoco-lidar. Origin not documented upstream. UNVERIFIED against hardware; replace with a recording from the physical sensor before planning with its azimuth-dependent lobe."
     }

@@ -32,6 +32,8 @@ models/sensors/lidar_3d/
 config/sensors/lidar/
   livox-mid360s.json               uniform pattern, needs no external data
   livox-mid360s-table.json         table pattern, needs a table you supply
+  scan_patterns/
+    README.md                      how to build a table; tables are not committed
 
 config/sensors/schema/
   lidar-3d.schema.json
@@ -40,8 +42,6 @@ config/
   livox-mid360s-pdudef-compact.json   robot Mid360S -> the pdutypes below
   livox-mid360s-pdutypes.json         one 385,024 byte PointCloud2 channel
 
-scan_patterns/
-  README.md                        how to build a table; tables are not committed
 ```
 
 ## Sensor API
@@ -112,7 +112,7 @@ datasheet rather than hard-coded.
   what reproduces non-repetitive scanning: consecutive frames use different
   directions so accumulated coverage keeps improving with observation time.
 
-Tables are not committed. See `scan_patterns/README.md`.
+Tables are not committed. See `config/sensors/lidar/scan_patterns/README.md`.
 
 ## Run
 
