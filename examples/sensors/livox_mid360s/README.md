@@ -19,6 +19,8 @@ example code:
 ```text
 examples/sensors/livox_mid360s/
   README.md
+  CMakeLists.txt
+  livox-mid360s-hakoniwa-asset.cpp   C++ publisher, for the C++ simulator
   livox-mid360s-hakoniwa-asset.py
   read_point_cloud.py
   scene_view.py                    MuJoCo scene plus cloud, for the publisher
@@ -43,6 +45,14 @@ config/sensors/schema/
 config/
   livox-mid360s-pdudef-compact.json   robot Mid360S -> the pdutypes below
   livox-mid360s-pdutypes.json         one 385,024 byte PointCloud2 channel
+  assets/livox-mid360s-hakoniwa-asset.json   manifest the C++ asset reads
+  endpoint/livox_mid360s_endpoint.json
+  endpoint/comm/shm_livox_mid360s_comm.json
+
+src/sensors/lidar/lidar_3d_sensor.cpp    the C++ sensor
+include/sensors/lidar/lidar_3d_sensor.hpp
+include/hakoniwa/pdu/converter/sensor_msgs/point_cloud2.hpp
+include/hakoniwa/pdu/adapter/sensor_msgs/point_cloud2.hpp
 
 ```
 
@@ -133,7 +143,13 @@ python3 -m pip install mujoco numpy hakoniwa-pdu open3d
 the reader's `--headless` mode still imports it, so skip the reader entirely if
 you would rather not install it.
 
-Terminal A, the publisher:
+Terminal A, the publisher. The C++ one reads the manifest in `config/assets/`:
+
+```bash
+./src/cmake-build/examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset
+```
+
+or the Python one, which reads the profile and the scene directly:
 
 ```bash
 python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py
@@ -194,6 +210,39 @@ without `--viewer` nothing is paced.
 
 Closing either window stops its asset. Closing the publisher's stops the
 simulation with it, since the publisher owns Conductor.
+
+## Two Publishers, One Reader
+
+The sensor exists in C++ and in Python, and so does the publisher. The reader is
+Python in both cases: it receives a PDU and does not care what wrote it. This is
+the shape `color_camera` already uses, a C++ publisher with `read_camera.py`.
+
+Both are here because they answer different needs. `src/sensors` is where the
+C++ simulator main loop finds its sensors, so only a C++ `lidar_3d` can be
+mounted on the C++ robot samples. The Python one needs no build, which is what
+makes the standalone example and the Business Pack Recipe quick to iterate on.
+
+```text
+LiDAR3DSensor (C++)  ─┐
+                      ├─→ Mid360S/point_cloud ─→ read_point_cloud.py
+LivoxMid360SSensor (py) ┘
+```
+
+They read the same profile, including `mjcf_binding` and `pdu_config`, so the
+mount, the range gate, the accuracy bands and the channel budget cannot drift
+between them.
+
+Two differences are deliberate:
+
+- The C++ sensor refuses a `table` scan pattern rather than approximating it.
+  Replaying a recorded table is implemented in Python, which can read the `.npy`
+  the tooling produces.
+- Only the Python publisher has `--viewer`. Drawing the scene is an example
+  convenience, and the C++ asset is the one meant to be mounted on a robot.
+
+A reader started before the publisher writes will see a channel that has been
+created but never written, which reads back as zeros: not an empty read, and not
+a valid PDU. It skips those and says so once, as `read_camera.py` does.
 
 ## Hakoniwa PDU Publisher / Reader
 

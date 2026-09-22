@@ -69,7 +69,8 @@ std::shared_ptr<TestWorld> MakeWorld()
 
 LiDAR3DSensor MakeSensor(const std::shared_ptr<TestWorld>& world, bool apply_noise)
 {
-    LiDAR3DSensor sensor(world, "lidar_mount", "lidar_site", "lidar_mount");
+    // No names here: they come from the profile's mjcf_binding.
+    LiDAR3DSensor sensor(world);
     const auto path = (RepoRoot() / "config/sensors/lidar/livox-mid360s.json").string();
     if (!sensor.LoadConfig(path)) {
         throw std::runtime_error("livox-mid360s.json should load");
@@ -94,6 +95,14 @@ void TestDatasheetValuesArePreserved()
     HAKO_TEST_EXPECT(NearlyEqual(config.detection_distance.min, 0.1), "unexpected min range");
     HAKO_TEST_EXPECT(NearlyEqual(config.detection_distance.max, 100.0), "unexpected max range");
     HAKO_TEST_EXPECT(config.scan_pattern.type == ScanPatternType::Uniform, "unexpected pattern");
+    // The profile names the mount, so the asset does not have to restate it.
+    HAKO_TEST_EXPECT(config.mjcf_binding.source_site == "lidar_site", "unexpected source site");
+    HAKO_TEST_EXPECT(config.mjcf_binding.source_body == "lidar_mount", "unexpected source body");
+    HAKO_TEST_EXPECT(config.mjcf_binding.exclude_body == "lidar_mount", "unexpected exclude body");
+    // The publisher budgets the fixed channel against these.
+    HAKO_TEST_EXPECT(config.pdu_config.message_type == "sensor_msgs/PointCloud2", "unexpected message type");
+    HAKO_TEST_EXPECT(config.pdu_config.max_points == 24000, "unexpected point budget");
+    HAKO_TEST_EXPECT(config.pdu_config.point_step == 16, "unexpected point step");
 }
 
 void TestRaysPerFrameFollowPointRateOverFrameRate()
@@ -201,7 +210,7 @@ void TestNoisePerturbsRangesWithoutMovingTheGeometry()
 void TestTablePatternIsRejectedRatherThanSilentlyIgnored()
 {
     auto world = MakeWorld();
-    hako::robots::sensor::lidar::LiDAR3DSensor sensor(world, "lidar_mount", "lidar_site", "lidar_mount");
+    hako::robots::sensor::lidar::LiDAR3DSensor sensor(world);
     const auto path = (RepoRoot() / "config/sensors/lidar/livox-mid360s-table.json").string();
     // Replaying a recorded table is implemented in the Python sensor only.
     // Scanning a uniform pattern while the profile asks for a table would be a

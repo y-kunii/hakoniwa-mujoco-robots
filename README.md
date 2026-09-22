@@ -40,7 +40,7 @@ Current standalone examples:
 ```text
 examples/sensors/ultrasonic/        ultrasonic range sensor + viewer ray
 examples/sensors/color_camera/      RGB camera sensor + PNG capture
-examples/sensors/livox_mid360s/     Livox Mid-360S 3D LiDAR + PointCloud2 PDU (Python)
+examples/sensors/livox_mid360s/     Livox Mid-360S 3D LiDAR + PointCloud2 PDU
 examples/actuators/joint/           MuJoCo position / velocity joint actuators
 examples/actuators/unitree_go1/     Unitree Go1 MJCF joint I/O smoke
 ```
@@ -594,8 +594,9 @@ python python/lidar_visualizer.py
 ./src/cmake-build/examples/sensors/color_camera/color-camera-example
 ```
 
-- Livox Mid-360S 3D LiDAR example. Unlike the examples above it needs no CMake build, and it is two Hakoniwa assets, so it wants three terminals:
+- Livox Mid-360S 3D LiDAR example. Two Hakoniwa assets, so it wants three terminals. The publisher exists in both languages and either can be paired with the Python reader:
 ```bash
+./src/cmake-build/examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset  # or the .py below
 python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py   # publisher, owns Conductor
 python3 examples/sensors/livox_mid360s/read_point_cloud.py               # reader, Open3D window
 hako-cmd start                                                           # once both report WAITING
@@ -692,7 +693,7 @@ Current sensor areas:
 - camera / depth / RGBD / multicamera
 - color camera PNG example
 - 2D LiDAR
-- 3D LiDAR (Livox Mid-360S, Python, `sensor_msgs/PointCloud2`)
+- 3D LiDAR (Livox Mid-360S, C++ and Python, `sensor_msgs/PointCloud2`)
 - ultrasonic range
 - IMU
 - joint state
@@ -865,7 +866,8 @@ The top-level README keeps only the entry points, setup, and sample commands. Us
 - `examples/sensors/ultrasonic/README.md`: ultrasonic sensor example
 - `examples/sensors/color_camera/README.md`: color camera PNG example
 - `examples/sensors/livox_mid360s/README.md`: Livox Mid-360S 3D LiDAR point cloud example
-- `python/livox_mid360s_sensor.py`: Livox Mid-360S 3D LiDAR sensor, MuJoCo and NumPy only
+- `src/sensors/lidar/lidar_3d_sensor.cpp`: Livox Mid-360S 3D LiDAR sensor for the C++ simulator
+- `python/livox_mid360s_sensor.py`: the same sensor in Python, MuJoCo and NumPy only
 - `python/livox_scan_pattern_tool.py`: build and inspect 3D LiDAR scan-pattern tables
 - `examples/actuators/joint/README.md`: MJCF-native position / velocity joint actuator example
 - `src/sensors/`: reusable sensor components

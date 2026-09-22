@@ -144,6 +144,42 @@ bool LiDAR3DSensor::LoadConfig(const std::string& config_path)
         }
     }
 
+    if (const auto* pdu = hako::robots::config::FindObject(root, "pdu_config"); pdu != nullptr) {
+        config_.pdu_config.message_type =
+            pdu->value("message_type", config_.pdu_config.message_type);
+        config_.pdu_config.max_points = static_cast<size_t>(
+            common::get_json_int(*pdu, "max_points", static_cast<int>(config_.pdu_config.max_points)));
+        config_.pdu_config.point_step = static_cast<size_t>(
+            common::get_json_int(*pdu, "point_step", static_cast<int>(config_.pdu_config.point_step)));
+    }
+
+    if (const auto* binding = hako::robots::config::FindObject(root, "mjcf_binding");
+        binding != nullptr)
+    {
+        config_.mjcf_binding.config_style =
+            binding->value("config_style", config_.mjcf_binding.config_style);
+        config_.mjcf_binding.runtime_source =
+            binding->value("runtime_source", config_.mjcf_binding.runtime_source);
+        config_.mjcf_binding.source_body =
+            binding->value("source_body", config_.mjcf_binding.source_body);
+        config_.mjcf_binding.source_site =
+            binding->value("source_site", config_.mjcf_binding.source_site);
+        config_.mjcf_binding.exclude_body =
+            binding->value("exclude_body", config_.mjcf_binding.exclude_body);
+    }
+
+    // Constructor arguments win, so a caller can still point the same profile
+    // at another mount; otherwise the profile decides.
+    if (sensor_body_name_.empty()) {
+        sensor_body_name_ = config_.mjcf_binding.source_body;
+    }
+    if (sensor_site_name_.empty()) {
+        sensor_site_name_ = config_.mjcf_binding.source_site;
+    }
+    if (exclude_body_name_.empty()) {
+        exclude_body_name_ = config_.mjcf_binding.exclude_body;
+    }
+
     RebuildNoisePipeline();
     scheduler_.Reset();
     return true;

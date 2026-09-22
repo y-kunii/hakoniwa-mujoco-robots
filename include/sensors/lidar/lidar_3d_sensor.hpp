@@ -52,6 +52,28 @@ namespace hako::robots::sensor::lidar
         std::string table_provenance {};
     };
 
+    // Which MJCF body or site the rays leave from, and what the sensor must
+    // not see. Declared in the profile, as ultrasonic does, so the scene and
+    // the sensor agree without the caller restating names.
+    struct MjcfBinding
+    {
+        std::string config_style {"hakoniwa-sdf-like"};
+        std::string runtime_source {"mjcf"};
+        std::string source_body {};
+        std::string source_site {};
+        std::string exclude_body {};
+    };
+
+    // What a publisher budgets the fixed PointCloud2 channel against. The
+    // channel is sized as envelope + max_points * point_step, so these two are
+    // the profile's half of that agreement.
+    struct LidarPduConfig
+    {
+        std::string message_type {"sensor_msgs/PointCloud2"};
+        size_t max_points {0};
+        size_t point_step {16};
+    };
+
     struct LiDAR3DConfig
     {
         OutputBinding output {};
@@ -60,6 +82,8 @@ namespace hako::robots::sensor::lidar
         FieldOfView field_of_view {};
         ScanPattern scan_pattern {};
         std::vector<DistanceAccuracy> distance_accuracy {};
+        MjcfBinding mjcf_binding {};
+        LidarPduConfig pdu_config {};
     };
 
     // One frame of returns, in the sensor frame. Rays that hit nothing, or hit
@@ -99,11 +123,13 @@ namespace hako::robots::sensor::lidar
     class LiDAR3DSensor : public ILidar3DSensor
     {
     public:
-        LiDAR3DSensor(
+        // Names left empty are taken from the profile's mjcf_binding when the
+        // config loads. Passing them explicitly overrides the profile.
+        explicit LiDAR3DSensor(
             std::shared_ptr<hako::robots::physics::IWorld> world,
-            std::string sensor_body_name = "lidar_mount",
-            std::string sensor_site_name = "lidar_site",
-            std::string exclude_body_name = "lidar_mount");
+            std::string sensor_body_name = {},
+            std::string sensor_site_name = {},
+            std::string exclude_body_name = {});
 
         bool LoadConfig(const std::string& config_path) override;
         const LiDAR3DConfig& GetConfig() const override;

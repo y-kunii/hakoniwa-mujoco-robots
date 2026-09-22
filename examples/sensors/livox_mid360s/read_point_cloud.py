@@ -66,7 +66,8 @@ def finish(vis, stats) -> None:
     it, leaving this process blocked. Report, release the window, and go.
     """
     print(f"\nINFO: received {stats['received']} clouds, drew {stats['drawn']}, "
-          f"{stats['empty']} empty reads", flush=True)
+          f"{stats['empty']} empty reads, {stats['invalid']} skipped before the "
+          f"first write", flush=True)
     if vis is not None:
         vis.destroy_window()
     sys.stdout.flush()
@@ -75,7 +76,7 @@ def finish(vis, stats) -> None:
 
 def main() -> int:
     args = parse_args()
-    stats = {"received": 0, "empty": 0, "drawn": 0}
+    stats = {"received": 0, "empty": 0, "drawn": 0, "invalid": 0}
 
     vis = pcd = None
     if not args.headless:
@@ -102,7 +103,19 @@ def main() -> int:
         if raw is None or len(raw) == 0:
             stats["empty"] += 1
             return 0
-        msg = pdu_to_py_PointCloud2(bytearray(raw))
+        try:
+            msg = pdu_to_py_PointCloud2(bytearray(raw))
+        except Exception as exc:  # noqa: BLE001 - the channel is not written yet
+            # A channel that has been created but never written reads back as
+            # zeros, which is not an empty read and not a valid PDU. The C++
+            # publisher reaches that state first, so skip until it writes.
+            stats["invalid"] += 1
+            if stats["invalid"] == 1:
+                print(f"INFO: skipping invalid PDU until the publisher writes: {exc}",
+                      flush=True)
+            elif stats["invalid"] % 100 == 0:
+                print(f"INFO: still waiting, {stats['invalid']} invalid reads", flush=True)
+            return 0
         if msg.width == 0:
             stats["empty"] += 1
             return 0

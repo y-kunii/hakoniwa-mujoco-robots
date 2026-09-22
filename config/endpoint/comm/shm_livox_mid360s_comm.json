@@ -1,0 +1,16 @@
+{
+  "protocol": "shm",
+  "impl_type": "callback",
+  "name": "livox_mid360s_shm",
+  "direction": "inout",
+  "io": {
+    "robots": [
+      {
+        "name": "Mid360S",
+        "pdu": [
+          { "name": "point_cloud", "notify_on_recv": false }
+        ]
+      }
+    ]
+  }
+}

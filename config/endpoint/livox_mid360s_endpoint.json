@@ -1,0 +1,6 @@
+{
+  "name": "livox_mid360s_endpoint",
+  "pdu_def_path": "../livox-mid360s-pdudef-compact.json",
+  "cache": "cache/buffer.json",
+  "comm": "comm/shm_livox_mid360s_comm.json"
+}

@@ -40,7 +40,7 @@
 ```text
 examples/sensors/ultrasonic/        ultrasonic range sensor + viewer ray
 examples/sensors/color_camera/      RGB camera sensor + PNG capture
-examples/sensors/livox_mid360s/     Livox Mid-360S 3D LiDAR + PointCloud2 PDU (Python)
+examples/sensors/livox_mid360s/     Livox Mid-360S 3D LiDAR + PointCloud2 PDU
 examples/actuators/joint/           MuJoCo position / velocity joint actuators
 examples/actuators/unitree_go1/     Unitree Go1 MJCF joint I/O smoke
 ```
@@ -464,8 +464,9 @@ python python/lidar_visualizer.py
 ./src/cmake-build/examples/sensors/color_camera/color-camera-example
 ```
 
-- Livox Mid-360S 3D LiDAR example。上の例と違い Python なので CMake build は不要です。Hakoniwa asset が 2 つなので terminal を 3 つ使います:
+- Livox Mid-360S 3D LiDAR example。Hakoniwa asset が 2 つなので terminal を 3 つ使います。publisher は C++ と Python の両方があり、どちらも同じ Python reader と組めます:
 ```bash
+./src/cmake-build/examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset  # または下の .py
 python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py   # publisher、Conductor を持つ
 python3 examples/sensors/livox_mid360s/read_point_cloud.py               # reader、Open3D 表示
 hako-cmd start                                                           # 両方が WAITING と出てから
@@ -561,7 +562,7 @@ PDU converter / adapter は `include/hakoniwa/pdu/` にあります。
 - camera / depth / RGBD / multicamera
 - color camera PNG example
 - 2D LiDAR
-- 3D LiDAR（Livox Mid-360S、Python、`sensor_msgs/PointCloud2`）
+- 3D LiDAR（Livox Mid-360S、C++ と Python、`sensor_msgs/PointCloud2`）
 - ultrasonic range
 - IMU
 - joint state

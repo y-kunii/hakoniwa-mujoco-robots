@@ -52,11 +52,12 @@ The 3D LiDAR example demonstrates:
 - packing a scan into `sensor_msgs/PointCloud2` and publishing it through Hakoniwa PDU
 - reading the cloud back and rendering it live with `read_point_cloud.py`
 
-This example is Python, not C++, so it needs no CMake build. It is two Hakoniwa
-assets, so run it from the repository root in three terminals:
+The publisher exists in C++ and in Python; the reader is Python either way,
+because it receives a PDU and does not care what wrote it. Two Hakoniwa assets,
+so run it from the repository root in three terminals:
 
 ```bash
-python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py
+./src/cmake-build/examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset
 python3 examples/sensors/livox_mid360s/read_point_cloud.py
 hako-cmd start
 ```

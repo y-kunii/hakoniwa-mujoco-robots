@@ -1,0 +1,17 @@
+{
+  "$schema": "schema/hakoniwa-asset-manifest.schema.json",
+  "name": "livox_mid360s_mujoco_asset",
+  "description": "Standalone Livox Mid-360S 3D LiDAR MuJoCo asset with Hakoniwa PointCloud2 PDU output.",
+  "model": "../../models/sensors/lidar_3d/livox-mid360s-sample.xml",
+  "pdu_def": "../livox-mid360s-pdudef-compact.json",
+  "endpoint": "../endpoint/livox_mid360s_endpoint.json",
+  "components": [
+    {
+      "id": "mid360s",
+      "kind": "sensor",
+      "type": "lidar_3d",
+      "config": "../sensors/lidar/livox-mid360s.json",
+      "pdu_robot": "Mid360S"
+    }
+  ]
+}
