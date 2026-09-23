@@ -94,6 +94,9 @@ def publish_frame() -> bool:
 
     view = state.get("view")
     if view is not None:
+        # The scene may have moved since the last frame; the meshes have to
+        # follow, or the cloud appears to drift away from its own geometry.
+        view.follow_scene(state["data"])
         origin, rotation = state["sensor"].origin(state["data"])
         if not view.update(scan.points, scan.distances, origin, rotation):
             print("INFO: viewer window closed; stopping", flush=True)

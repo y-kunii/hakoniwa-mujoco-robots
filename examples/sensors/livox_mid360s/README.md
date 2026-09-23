@@ -237,7 +237,13 @@ reader receives the cloud alone, with no MuJoCo model to draw it against.
 
 `read_point_cloud.py` shows the cloud as a receiver sees it. That is the honest
 view of what a consumer downstream of the PDU actually gets, with no scene to
-fill in the gaps.
+fill in the gaps. It is also the cloud-only window: run the publisher without
+`--viewer` and only the reader's window opens.
+
+`scene_view.py` re-poses the meshes from MjModel every frame, so a scene with
+joints follows its physics. Building them once and leaving them put looks like
+the sensor drifting away from its own geometry, which is a confusing way to
+learn that the scene is moving.
 
 Both windows are Open3D. MuJoCo's own passive viewer is the obvious way to draw
 on a MuJoCo scene and was tried first, through several rounds: it rendered, but
