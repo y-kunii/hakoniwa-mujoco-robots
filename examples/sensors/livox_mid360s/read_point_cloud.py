@@ -52,6 +52,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--point-size", type=float, default=2.5)
     ap.add_argument("--render-every", type=int, default=1,
                     help="draw one frame in N; raise it if the display slows simulation time")
+    ap.add_argument("--delta-usec", type=int, default=100_000,
+                    help="Hakoniwa callback period; keep it at or below the "
+                         "publisher's frame period or frames go unread")
     ap.add_argument("--headless", action="store_true",
                     help="consume and report clouds without opening a window")
     return ap.parse_args()
@@ -151,7 +154,7 @@ def main() -> int:
         "on_reset": lambda c: 0,
     }
     # No conductor_start here: livox-mid360s-hakoniwa-asset.py owns Conductor.
-    if not hakopy.asset_register(ASSET, args.config, callbacks, 100_000,
+    if not hakopy.asset_register(ASSET, args.config, callbacks, args.delta_usec,
                                  hakopy.HAKO_ASSET_MODEL_CONTROLLER):
         print("ERROR: asset_register failed")
         return 1

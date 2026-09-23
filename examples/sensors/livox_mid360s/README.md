@@ -248,7 +248,17 @@ LivoxMid360SSensor (py) ┘
 
 They read the same profile, including `mjcf_binding` and `pdu_config`, so the
 mount, the range gate, the accuracy bands and the channel budget cannot drift
-between them.
+between them. Both step MuJoCo at the model's timestep and scan once per sensor
+frame, and both stamp the cloud with MuJoCo's own clock, so a cloud published by
+one is the same cloud the other would have published.
+
+The two arrange that differently, and the difference is forced. The C++ asset
+registers with Hakoniwa at the model's timestep and lets its update scheduler
+decide when to scan. The Python asset registers at the sensor's frame period and
+takes the model's timesteps inside it, because registering at the timestep needs
+a conductor cycle that does not match it: matching them stalls the run outright
+once a second asset joins, and leaving the cycle at 100 ms advances simulation
+at a tenth of real time.
 
 Two differences are deliberate:
 

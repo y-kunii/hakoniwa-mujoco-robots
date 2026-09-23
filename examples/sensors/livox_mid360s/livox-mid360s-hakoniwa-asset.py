@@ -99,8 +99,11 @@ def publish_frame() -> bool:
             print("INFO: viewer window closed; stopping", flush=True)
             return False
 
-    msg = build_cloud(pts, hakopy.simulation_time() * 1000,
-                      state["sensor"].frame_id, state["point_step"])
+    # MuJoCo's own clock, which is what the C++ asset stamps with. Hakoniwa's
+    # simulation_time() is already one conductor tick ahead when the first
+    # frame goes out, so the first two clouds would carry the same stamp.
+    stamp_ns = int(state["data"].time * 1_000_000_000)
+    msg = build_cloud(pts, stamp_ns, state["sensor"].frame_id, state["point_step"])
     raw = py_to_pdu_PointCloud2(msg)
     if len(raw) > state["pdu_size"]:
         print(f"ERROR: serialised {len(raw)} bytes exceeds pdu_size {state['pdu_size']}")
@@ -113,7 +116,7 @@ def publish_frame() -> bool:
     state["last_bytes"] = len(raw)
     if state["frames"] <= 3 or state["frames"] % 10 == 0:
         note = f"  (dropped {dropped:,} over budget)" if dropped else ""
-        print(f"{hakopy.simulation_time():>12} us  frame {state['frames']:>4}  "
+        print(f"{state['data'].time:>9.2f} s  frame {state['frames']:>4}  "
               f"{len(pts):>6,} pts  {len(raw):>7,} B{note}", flush=True)
     return True
 
@@ -130,18 +133,36 @@ def on_reset(context):  # noqa: ARG001
 
 def on_manual_timing_control(context):  # noqa: ARG001
     print("INFO: simulation running; publishing point clouds", flush=True)
-    step_usec = int(1_000_000 / state["frame_rate"])
+    # Advance physics at the model's timestep and scan once per sensor frame.
+    # Publishing without stepping leaves the scene frozen: harmless while
+    # everything in it is static, wrong the moment something moves or the
+    # sensor is mounted on a robot.
+    #
+    # The Hakoniwa step stays at the sensor's frame period and the model's
+    # timesteps are taken inside it. Registering at the timestep instead, as
+    # the C++ asset does, needs a conductor cycle that does not match it, and
+    # the run then advances at a fraction of real time.
+    timestep = float(state["model"].opt.timestep)
     period = 1.0 / state["frame_rate"]
+    steps_per_frame = max(1, round(period / timestep))
+    step_usec = int(period * 1_000_000)
     watched = state.get("view") is not None
+    print(f"INFO: {steps_per_frame} x {timestep * 1000:.0f} ms physics steps per frame",
+          flush=True)
     if watched:
         print(f"INFO: pacing to wall clock at {state['frame_rate']:.0f} Hz for the viewer",
               flush=True)
+
     deadline = time.perf_counter()
     while True:
+        for _ in range(steps_per_frame):
+            mujoco.mj_step(state["model"], state["data"])
+
         if not publish_frame():
             break
         if not hakopy.usleep(step_usec):
             break
+
         if watched:
             # hakopy.usleep advances simulation time and returns at once; it does
             # not wait in wall clock and does not release the GIL. Left alone the
@@ -156,9 +177,11 @@ def on_manual_timing_control(context):  # noqa: ARG001
                 time.sleep(remaining)
             else:
                 deadline = time.perf_counter()
+
         if state["max_frames"] and state["frames"] >= state["max_frames"]:
             print(f"INFO: reached --max-frames {state['max_frames']}", flush=True)
             break
+
     print(f"INFO: published {state['frames']} frames, last {state['last_bytes']:,} bytes",
           flush=True)
     return 0
@@ -220,7 +243,7 @@ def main() -> int:
     budget = (pdu_size - ENVELOPE_BYTES) // point_step
 
     state.update(
-        data=data, sensor=sensor, pdu_size=pdu_size, point_step=point_step,
+        model=model, data=data, sensor=sensor, pdu_size=pdu_size, point_step=point_step,
         max_points=budget, max_frames=args.max_frames,
         frame_rate=sensor.pattern.frame_rate, frames=0, last_bytes=0,
     )
