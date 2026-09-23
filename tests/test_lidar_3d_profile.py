@@ -28,6 +28,7 @@ SCHEMA_PATH = SENSOR_DIR / "schema/lidar-3d.schema.json"
 UNIFORM_PROFILE = SENSOR_DIR / "lidar/livox-mid360s.json"
 TABLE_PROFILE = SENSOR_DIR / "lidar/livox-mid360s-table.json"
 SAMPLE_SCENE = ROOT / "models/sensors/lidar_3d/livox-mid360s-sample.xml"
+MOVING_SCENE = ROOT / "models/sensors/lidar_3d/livox-mid360s-moving-sample.xml"
 PDU_DEF = ROOT / "config/livox-mid360s-pdudef-compact.json"
 PDU_TYPES = ROOT / "config/livox-mid360s-pdutypes.json"
 ENVELOPE_BYTES = 760  # PointCloud2 serialises to this whatever the point count
@@ -300,3 +301,92 @@ class SceneViewTest(unittest.TestCase):
         mesh = self.scene_view._mesh_for(model, 0)
         extent = np.asarray(mesh.get_max_bound()) - np.asarray(mesh.get_min_bound())
         self.assertAlmostEqual(extent[0], 2 * self.scene_view.PLANE_FALLBACK_HALF, places=5)
+
+
+@unittest.skipUnless(mujoco, "install mujoco to exercise the moving scene")
+class MovingSceneTest(unittest.TestCase):
+    """The scene that shows the asset advances physics.
+
+    Its whole purpose is that stepping changes what the sensor sees, so the
+    tests check exactly that, and that the static scene stays static.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+
+        sys.path.insert(0, str(ROOT / "python"))
+        from livox_mid360s_sensor import LivoxMid360SSensor
+
+        cls.SensorClass = LivoxMid360SSensor
+
+    def load(self, scene):
+        model = mujoco.MjModel.from_xml_path(str(scene))
+        data = mujoco.MjData(model)
+        mujoco.mj_forward(model, data)
+        return model, data
+
+    def geom_position(self, model, data, name):
+        geom = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, name)
+        self.assertGreaterEqual(geom, 0, f"{name} should exist in the scene")
+        return np.asarray(data.geom_xpos[geom]).copy()
+
+    def step(self, model, data, seconds):
+        for _ in range(int(round(seconds / model.opt.timestep))):
+            mujoco.mj_step(model, data)
+
+    def test_the_static_scene_does_not_move(self):
+        """Its objects carry no joints, so stepping must change nothing. The
+        blind cone and occlusion tests depend on the positions staying put."""
+        model, data = self.load(SAMPLE_SCENE)
+        self.assertEqual(model.njnt, 0, "the static scene should have no joints")
+        before = self.geom_position(model, data, "ball_geom")
+        self.step(model, data, 1.0)
+        np.testing.assert_allclose(self.geom_position(model, data, "ball_geom"), before)
+
+    def test_the_moving_scene_moves_under_gravity_alone(self):
+        """No actuator and no initial velocity: the pendulum starts horizontal
+        and the tower starts unbalanced, so gravity is enough."""
+        model, data = self.load(MOVING_SCENE)
+        self.assertLess(model.opt.gravity[2], -9.0, "the moving scene needs gravity")
+        moving = ("pendulum_bob", "falling_ball_geom", "stack_top_geom")
+        before = {name: self.geom_position(model, data, name) for name in moving}
+        self.step(model, data, 1.0)
+        for name in moving:
+            travelled = np.linalg.norm(self.geom_position(model, data, name) - before[name])
+            self.assertGreater(travelled, 0.5, f"{name} should have moved after a second")
+
+    def test_the_moving_scene_keeps_a_static_reference(self):
+        """Something has to stay still, or a moving return could be the sensor
+        rather than the scene."""
+        model, data = self.load(MOVING_SCENE)
+        still = ("box_static_geom", "wall_back_geom", "lidar_housing")
+        before = {name: self.geom_position(model, data, name) for name in still}
+        self.step(model, data, 1.0)
+        for name in still:
+            np.testing.assert_allclose(
+                self.geom_position(model, data, name), before[name], atol=1e-9,
+                err_msg=f"{name} should not move")
+
+    def test_the_sensor_sees_the_motion(self):
+        """Returns on a moving object must change while the static reference
+        keeps returning. Without stepping, both would be constant."""
+        model, data = self.load(MOVING_SCENE)
+        sensor = self.SensorClass(model, UNIFORM_PROFILE, apply_noise=False)
+        ball = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "falling_ball_geom")
+        static = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "box_static_geom")
+
+        heights, static_hits = [], []
+        for _ in range(6):
+            self.step(model, data, 0.1)
+            scan = sensor.scan(data)
+            hit = scan.points[scan.geom_ids == ball]
+            if len(hit):
+                heights.append(float(np.mean(hit[:, 2])))
+            static_hits.append(int((scan.geom_ids == static).sum()))
+
+        self.assertGreaterEqual(len(heights), 3, "the falling ball should be in view")
+        self.assertGreater(heights[0] - heights[-1], 0.5,
+                           "the ball's returns should descend as it falls")
+        self.assertTrue(all(count > 0 for count in static_hits),
+                        "the static reference should return throughout")

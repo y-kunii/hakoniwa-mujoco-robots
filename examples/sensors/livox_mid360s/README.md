@@ -31,7 +31,8 @@ python/
   livox_scan_pattern_tool.py       build and inspect scan-pattern tables
 
 models/sensors/lidar_3d/
-  livox-mid360s-sample.xml
+  livox-mid360s-sample.xml          static, what the tests measure against
+  livox-mid360s-moving-sample.xml   gravity on, things move
 
 config/sensors/lidar/
   livox-mid360s.json               uniform pattern, needs no external data
@@ -46,6 +47,7 @@ config/
   livox-mid360s-pdudef-compact.json   robot Mid360S -> the pdutypes below
   livox-mid360s-pdutypes.json         one 385,024 byte PointCloud2 channel
   assets/livox-mid360s-hakoniwa-asset.json   manifest the C++ asset reads
+  assets/livox-mid360s-moving-asset.json     the same, on the moving scene
   endpoint/livox_mid360s_endpoint.json
   endpoint/comm/shm_livox_mid360s_comm.json
 
@@ -93,6 +95,38 @@ mounting height the datasheet's -7 degree lower limit puts the nearest floor
 return at `0.5 / tan(7 deg)` = 4.07 m, so `box_low_near` at 1.2 m returns
 nothing while `box_tall_near` at the same distance is seen. The pole and walls
 produce occlusion shadows.
+
+## A Scene That Moves
+
+`livox-mid360s-sample.xml` is deliberately static: it carries no joints at all,
+because the blind-cone and occlusion tests measure against fixed positions.
+Nothing in it moves however long the simulation runs, which makes it a poor way
+to tell whether the asset is advancing physics.
+
+`livox-mid360s-moving-sample.xml` is the same sensor on the same mount with
+gravity switched on and three things that move:
+
+- a pendulum whose arm starts horizontal, so it swings on gravity alone with no
+  actuator and no initial velocity, sweeping an occlusion shadow across the wall
+- a ball released at 5 m that falls through the field of view and settles
+- a tower of three boxes, each offset far enough that its centre of mass sits
+  past the edge of the one below, so it topples and comes apart
+
+`box_static` and the walls do not move, so a moving return is obviously the
+scene and not the sensor.
+
+```bash
+python3 examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset.py --viewer \
+    --scene models/sensors/lidar_3d/livox-mid360s-moving-sample.xml
+```
+
+The C++ asset takes a manifest rather than a scene, so it reads the moving one
+through its own:
+
+```bash
+./src/cmake-build/examples/sensors/livox_mid360s/livox-mid360s-hakoniwa-asset \
+    config/assets/livox-mid360s-moving-asset.json
+```
 
 ## Sensor Config
 

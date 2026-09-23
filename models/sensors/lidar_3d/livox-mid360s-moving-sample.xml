@@ -1,0 +1,93 @@
+<mujoco model="livox_mid360s_moving_sample">
+  <compiler angle="degree"/>
+  <!-- Gravity on, unlike livox-mid360s-sample.xml. This scene exists to show
+       that the asset advances physics: the returns move because the scene
+       moves, not because the scan pattern changed. -->
+  <option timestep="0.01" gravity="0 0 -9.81"/>
+
+  <visual>
+    <global offwidth="1600" offheight="1200"/>
+    <quality shadowsize="4096"/>
+  </visual>
+
+  <asset>
+    <texture name="skybox" type="skybox" builtin="gradient"
+             rgb1="0.35 0.45 0.6" rgb2="0.05 0.06 0.1" width="256" height="256"/>
+    <texture name="ground_checker" type="2d" builtin="checker" width="512" height="512"
+             rgb1="0.22 0.26 0.32" rgb2="0.14 0.17 0.21"/>
+    <material name="ground_mat" texture="ground_checker" texrepeat="30 30" reflectance="0.05"/>
+    <material name="near_mat"   rgba="0.85 0.45 0.15 1"/>
+    <material name="mid_mat"    rgba="0.25 0.65 0.45 1"/>
+    <material name="wall_mat"   rgba="0.60 0.62 0.66 1"/>
+    <material name="sensor_mat" rgba="0.08 0.08 0.09 1"/>
+  </asset>
+
+  <worldbody>
+    <light name="key_light"  pos="0 0 8"   dir="0 0 -1"      diffuse="0.7 0.7 0.7"/>
+    <light name="fill_light" pos="-8 -8 6" dir="0.7 0.7 -0.6" diffuse="0.4 0.4 0.4"/>
+    <camera name="overview" pos="9 -11 7" mode="targetbody" target="lidar_mount"/>
+
+    <geom name="ground" type="plane" size="40 40 0.1" material="ground_mat"/>
+
+    <!-- The mount is identical to the static scene, so the same profile binds
+         to it without change: lidar_mount is exclude_body, lidar_site is
+         source_site, and the ray origin is 0.5 m above the floor. -->
+    <body name="lidar_mount" pos="0 0 0">
+      <geom name="post"          type="cylinder" pos="0 0 0.235" size="0.030 0.235" material="sensor_mat"/>
+      <geom name="lidar_housing" type="cylinder" pos="0 0 0.500" size="0.0325 0.030" material="sensor_mat"/>
+      <site name="lidar_site"    pos="0 0 0.500" size="0.015" rgba="1 0.1 0.1 1"/>
+    </body>
+
+    <!-- ===== Pendulum: a sweeping occluder =====
+         The arm starts horizontal, so gravity alone sets it swinging; no
+         actuator and no initial velocity are needed. The bob traces a 3.6 m
+         arc about 5 m out, well inside the vertical field of view, and its
+         occlusion shadow sweeps across the back wall as it goes. -->
+    <body name="pendulum" pos="0 5 2.6">
+      <joint name="pendulum_hinge" type="hinge" axis="0 1 0" pos="0 0 0" damping="0.02"/>
+      <geom name="pendulum_arm" type="capsule" fromto="0 0 0  1.8 0 0" size="0.05" material="mid_mat"/>
+      <geom name="pendulum_bob" type="sphere" pos="1.8 0 0" size="0.25" material="near_mat"/>
+    </body>
+
+    <!-- ===== Falling ball =====
+         Released at 5 m and left to fall and settle. Visible descending
+         through the cloud; at 5.8 m out the upper 52 deg limit reaches 7.9 m,
+         so it is in view for the whole drop. -->
+    <body name="falling_ball" pos="-5 3 5.0">
+      <freejoint name="falling_ball_free"/>
+      <geom name="falling_ball_geom" type="sphere" size="0.40" material="near_mat"/>
+    </body>
+
+    <!-- ===== Toppling stack =====
+         Each box is offset far enough that its centre of mass sits past the
+         edge of the one below, so the tower topples and comes apart. That
+         changes the cloud's silhouette rather than just moving a blob. -->
+    <body name="stack_bottom" pos="6 -3 0.30">
+      <freejoint name="stack_bottom_free"/>
+      <geom name="stack_bottom_geom" type="box" size="0.35 0.35 0.30" material="mid_mat"/>
+    </body>
+    <body name="stack_middle" pos="6.45 -3 0.85">
+      <freejoint name="stack_middle_free"/>
+      <geom name="stack_middle_geom" type="box" size="0.30 0.30 0.25" material="near_mat"/>
+    </body>
+    <body name="stack_top" pos="6.90 -3 1.30">
+      <freejoint name="stack_top_free"/>
+      <geom name="stack_top_geom" type="box" size="0.25 0.25 0.20" material="mid_mat"/>
+    </body>
+
+    <!-- ===== Static reference =====
+         Something that must not move, so a moving return is obviously the
+         scene and not the sensor. -->
+    <body name="box_static" pos="-4 -4 0.90">
+      <geom name="box_static_geom" type="box" size="0.80 0.80 0.90" material="mid_mat"/>
+    </body>
+
+    <!-- ===== Walls: occlusion shadows and the upper FOV limit ===== -->
+    <body name="wall_back" pos="0 12 1.50">
+      <geom name="wall_back_geom" type="box" size="6.0 0.15 1.50" material="wall_mat"/>
+    </body>
+    <body name="wall_side" pos="-10 0 1.50">
+      <geom name="wall_side_geom" type="box" size="0.15 6.0 1.50" material="wall_mat"/>
+    </body>
+  </worldbody>
+</mujoco>

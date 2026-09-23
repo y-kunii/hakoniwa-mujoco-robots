@@ -1,0 +1,17 @@
+{
+  "$schema": "schema/hakoniwa-asset-manifest.schema.json",
+  "name": "livox_mid360s_moving_asset",
+  "description": "Livox Mid-360S on a scene with gravity and moving objects, to show the asset advances physics.",
+  "model": "../../models/sensors/lidar_3d/livox-mid360s-moving-sample.xml",
+  "pdu_def": "../livox-mid360s-pdudef-compact.json",
+  "endpoint": "../endpoint/livox_mid360s_endpoint.json",
+  "components": [
+    {
+      "id": "mid360s",
+      "kind": "sensor",
+      "type": "lidar_3d",
+      "config": "../sensors/lidar/livox-mid360s.json",
+      "pdu_robot": "Mid360S"
+    }
+  ]
+}
