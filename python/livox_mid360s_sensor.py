@@ -200,10 +200,61 @@ class LivoxMid360SSensor:
             self.body_exclude = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, exclude)
             if self.body_exclude < 0:
                 raise ValueError(f"mjcf_binding.exclude_body not in model: {exclude}")
+        # The model does not change, so which geoms belong to the excluded body
+        # or anything under it is fixed. Resolving it once keeps the per-frame
+        # check to one vectorised test instead of a Python loop over returns.
+        self._self_geoms = np.array(
+            [g for g in range(model.ngeom) if self._is_self_geom(g)], dtype=np.int32)
 
     @property
     def samples_per_frame(self) -> int:
         return self.pattern.samples
+
+    def _is_self_geom(self, geom: int) -> bool:
+        """Is this geom on the excluded body or anything under it?"""
+        body = int(self.model.geom_bodyid[geom])
+        while body >= 0:
+            if body == self.body_exclude:
+                return True
+            parent = int(self.model.body_parentid[body])
+            if parent == body:
+                return False
+            body = parent
+        return False
+
+    def _cast_past_self(self, data, pos, world, dist, geomid,
+                        attempts: int = 16, epsilon: float = 1.0e-4) -> None:
+        """Let rays through the sensor's own mount instead of stopping on it.
+
+        mj_multiRay's bodyexclude drops only that body's own geoms, not its
+        descendants, so a mount carrying child bodies is seen by its own
+        sensor. Step just past each self hit and cast again, as the C++ sensor
+        and lidar_2d both do.
+        """
+        for i in np.nonzero(np.isin(geomid, self._self_geoms))[0]:
+            # Start from "no return". Only a hit on something that is not the
+            # mount replaces it, so a ray that leaves the scene after passing
+            # through the mount does not keep the mount's own hit.
+            resolved_dist, resolved_geom = self.max_range, -1
+            point = np.asarray(pos, dtype=np.float64).copy()
+            direction = world[i].astype(np.float64)
+            travelled = 0.0
+            for _ in range(attempts):
+                hit_geom = np.full(1, -1, dtype=np.int32)
+                hit = mujoco.mj_ray(self.model, data, point, direction,
+                                    None, 1, self.body_exclude, hit_geom)
+                if hit < 0.0:
+                    break
+                if not self._is_self_geom(int(hit_geom[0])):
+                    resolved_dist = travelled + float(hit)
+                    resolved_geom = int(hit_geom[0])
+                    break
+                step = float(hit) + epsilon
+                travelled += step
+                if travelled >= self.max_range:
+                    break
+                point = point + direction * step
+            dist[i], geomid[i] = resolved_dist, resolved_geom
 
     def origin(self, data: mujoco.MjData) -> tuple[np.ndarray, np.ndarray]:
         """Ray origin and orientation: the site when given, else the body."""
@@ -235,6 +286,9 @@ class LivoxMid360SSensor:
             geomid=geomid, dist=dist, normal=None,
             nray=nray, cutoff=self.max_range,
         )
+
+        if len(self._self_geoms):
+            self._cast_past_self(data, pos, world, dist, geomid)
 
         # geomid < 0 marks a non-return; the range gate drops the rest.
         valid = (geomid >= 0) & (dist > self.min_range) & (dist < self.max_range)

@@ -33,6 +33,7 @@ SCHEMA_PATH = SENSOR_DIR / "schema/lidar-3d.schema.json"
 UNIFORM_PROFILE = SENSOR_DIR / "lidar/livox-mid360s.json"
 TABLE_PROFILE = SENSOR_DIR / "lidar/livox-mid360s-table.json"
 SAMPLE_SCENE = ROOT / "models/sensors/lidar_3d/livox-mid360s-sample.xml"
+NESTED_MOUNT_SCENE = ROOT / "models/sensors/lidar_3d/livox-mid360s-nested-mount-test.xml"
 MOVING_SCENE = ROOT / "models/sensors/lidar_3d/livox-mid360s-moving-sample.xml"
 PDU_DEF = ROOT / "config/livox-mid360s-pdudef-compact.json"
 PDU_TYPES = ROOT / "config/livox-mid360s-pdutypes.json"
@@ -322,3 +323,50 @@ class MovingSceneTest(unittest.TestCase):
                            "the ball's returns should descend as it falls")
         self.assertTrue(all(count > 0 for count in static_hits),
                         "the static reference should return throughout")
+
+
+@unittest.skipUnless(mujoco, "install mujoco to exercise self exclusion")
+class SelfExclusionTest(unittest.TestCase):
+    """A mount with child bodies, which is what a sensor on a robot has.
+
+    mj_multiRay's bodyexclude drops only the named body's own geoms, so without
+    a second pass the sensor sees its own bracket and every ray through it
+    stops there.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+
+        sys.path.insert(0, str(ROOT / "python"))
+        from livox_mid360s_sensor import LivoxMid360SSensor
+
+        cls.model = mujoco.MjModel.from_xml_path(str(NESTED_MOUNT_SCENE))
+        cls.data = mujoco.MjData(cls.model)
+        mujoco.mj_forward(cls.model, cls.data)
+        sensor = LivoxMid360SSensor(cls.model, UNIFORM_PROFILE, apply_noise=False, seed=7)
+        cls.scan = sensor.scan(cls.data)
+
+    def geom(self, name):
+        found = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, name)
+        self.assertGreaterEqual(found, 0, f"{name} should exist in the scene")
+        return found
+
+    def test_a_child_of_the_excluded_body_is_also_excluded(self):
+        self.assertNotIn(self.geom("lidar_bracket_geom"), set(self.scan.geom_ids.tolist()),
+                         "a child of the excluded body must not appear in the returns")
+
+    def test_the_ray_passes_through_the_mount_rather_than_stopping(self):
+        """Dropping the self hit would lose the ray; it has to continue."""
+        self.assertIn(self.geom("target_behind_bracket_geom"),
+                      set(self.scan.geom_ids.tolist()),
+                      "what stands behind the mount must still be seen")
+
+    def test_no_return_is_recorded_where_the_mount_hid_nothing(self):
+        """A ray that leaves the scene after passing through the mount must not
+        keep the mount's own hit, which is the shape this bug first took."""
+        mount = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "lidar_mount")
+        for geom in self.scan.geom_ids.tolist():
+            body = int(self.model.geom_bodyid[geom])
+            self.assertNotEqual(body, mount)
+            self.assertNotEqual(int(self.model.body_parentid[body]), mount)

@@ -1,0 +1,30 @@
+<mujoco model="livox_mid360s_nested_mount_test">
+  <compiler angle="degree"/>
+  <option timestep="0.01" gravity="0 0 0"/>
+
+  <worldbody>
+    <geom name="ground" type="plane" size="40 40 0.1"/>
+
+    <!-- The mount carries a child body, which is what a sensor on a robot has:
+         a bracket, a housing, a wheel. mj_multiRay's bodyexclude drops only the
+         named body's own geoms, so without a second pass the sensor sees the
+         child and every ray through it stops at 0.3 m. -->
+    <body name="lidar_mount" pos="0 0 0">
+      <geom name="post" type="cylinder" pos="0 0 0.235" size="0.030 0.235"/>
+      <site name="lidar_site" pos="0 0 0.500" size="0.015"/>
+      <body name="lidar_bracket" pos="0.30 0 0.500">
+        <geom name="lidar_bracket_geom" type="box" size="0.12 0.12 0.12"/>
+      </body>
+    </body>
+
+    <!-- Directly behind the bracket. A ray that passes through the mount
+         reaches this; a ray that stops on the mount never does. -->
+    <body name="target_behind_bracket" pos="4.0 0 0.75">
+      <geom name="target_behind_bracket_geom" type="box" size="0.30 1.50 0.75"/>
+    </body>
+
+    <body name="wall_back" pos="0 12 1.50">
+      <geom name="wall_back_geom" type="box" size="6.0 0.15 1.50"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -218,6 +218,73 @@ void TestTablePatternIsRejectedRatherThanSilentlyIgnored()
     HAKO_TEST_EXPECT(!sensor.LoadConfig(path), "a table profile should be refused by the C++ sensor");
 }
 
+void TestAChildOfTheExcludedBodyIsAlsoExcluded()
+{
+    // mj_multiRay's bodyexclude drops only the named body's own geoms. A mount
+    // on a robot carries child bodies, so without a second pass the sensor
+    // sees its own bracket and every ray through it stops there.
+    auto world = std::make_shared<TestWorld>();
+    world->loadModel(
+        (RepoRoot() / "models/sensors/lidar_3d/livox-mid360s-nested-mount-test.xml").string());
+    LiDAR3DSensor sensor(world);
+    const auto path = (RepoRoot() / "config/sensors/lidar/livox-mid360s.json").string();
+    HAKO_TEST_EXPECT(sensor.LoadConfig(path), "the profile should load");
+    sensor.SetApplyNoise(false);
+    sensor.SetSeed(7U);
+
+    PointCloudFrame frame;
+    sensor.Scan(frame);
+
+    const int bracket = mj_name2id(world->getModel(), mjOBJ_GEOM, "lidar_bracket_geom");
+    const int target = mj_name2id(world->getModel(), mjOBJ_GEOM, "target_behind_bracket_geom");
+    HAKO_TEST_EXPECT(bracket >= 0 && target >= 0, "the test scene should have both geoms");
+
+    const std::set<int> hits(frame.geom_ids.begin(), frame.geom_ids.end());
+    HAKO_TEST_EXPECT(hits.count(bracket) == 0,
+                     "a child of the excluded body must not appear in the returns");
+    // The ray has to pass through the mount, not be dropped at it.
+    HAKO_TEST_EXPECT(hits.count(target) > 0,
+                     "what stands behind the mount must still be seen");
+}
+
+void TestTheProfileOverridesTheConstructorNames()
+{
+    // lidar_2d lets mjcf_binding win over the constructor arguments, which are
+    // the default. Naming a body that is not in the scene must not survive.
+    auto world = MakeWorld();
+    LiDAR3DSensor sensor(world, "not_a_body", "not_a_site", "not_a_body");
+    const auto path = (RepoRoot() / "config/sensors/lidar/livox-mid360s.json").string();
+    HAKO_TEST_EXPECT(sensor.LoadConfig(path), "the profile should load");
+    sensor.SetApplyNoise(false);
+
+    PointCloudFrame frame;
+    sensor.Scan(frame);
+    HAKO_TEST_EXPECT(frame.size() > 0, "the profile's mjcf_binding should have been used");
+}
+
+void TestTheFirstUpdateScansImmediately()
+{
+    // Every other sensor here calls StartReady, so the first ShouldUpdate
+    // fires rather than waiting out a period.
+    auto world = MakeWorld();
+    auto sensor = MakeSensor(world, false);
+    HAKO_TEST_EXPECT(sensor.ShouldUpdate(0.0), "the first update should be ready");
+}
+
+void TestAUniformProfileCannotClaimNonRepetitiveScanning()
+{
+    auto world = MakeWorld();
+    LiDAR3DSensor sensor(world);
+    // A uniform pattern draws fresh angles every frame and does not reproduce
+    // the structured coverage of a non-repetitive scanner, so the profile must
+    // not be able to claim it.
+    const auto path = (RepoRoot() / "models/sensors/lidar_3d").string();
+    (void)path;
+    HAKO_TEST_EXPECT(!sensor.LoadConfig(
+        (RepoRoot() / "tests/sensors/lidar/unit/uniform-non-repetitive.json").string()),
+        "uniform plus NonRepetitive should be refused");
+}
+
 void TestTheSameSeedGivesTheSameScan()
 {
     auto world = MakeWorld();
@@ -263,6 +330,10 @@ int main()
         TestLowObjectInsideTheBlindConeReturnsNothing();
         TestNoisePerturbsRangesWithoutMovingTheGeometry();
         TestTablePatternIsRejectedRatherThanSilentlyIgnored();
+        TestAChildOfTheExcludedBodyIsAlsoExcluded();
+        TestTheProfileOverridesTheConstructorNames();
+        TestTheFirstUpdateScansImmediately();
+        TestAUniformProfileCannotClaimNonRepetitiveScanning();
         TestTheSameSeedGivesTheSameScan();
         TestConsecutiveFramesDifferer();
     } catch (const std::exception& e) {

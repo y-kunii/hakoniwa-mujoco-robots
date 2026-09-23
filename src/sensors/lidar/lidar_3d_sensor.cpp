@@ -28,6 +28,17 @@ noise::NoiseType parse_noise_type_3d(const std::string& value)
     return noise::NoiseType::Gaussian;
 }
 
+const common::json* find_first(const common::json& node, const char* a, const char* b)
+{
+    if (node.contains(a)) {
+        return &node.at(a);
+    }
+    if (node.contains(b)) {
+        return &node.at(b);
+    }
+    return nullptr;
+}
+
 void read_span(const common::json& node, const char* key, AngleSpan& span)
 {
     if (!node.contains(key) || !node.at(key).is_object()) {
@@ -96,6 +107,16 @@ bool LiDAR3DSensor::LoadConfig(const std::string& config_path)
         config_.scan_pattern.table_provenance = pattern.value("TableProvenance", std::string(""));
     }
 
+    if (config_.scan_pattern.type == ScanPatternType::Uniform &&
+        config_.scan_pattern.non_repetitive)
+    {
+        // A uniform pattern draws fresh angles every frame; it does not
+        // reproduce the structured coverage of a non-repetitive scanner.
+        // Accepting the flag and ignoring it would claim behaviour that is
+        // not there.
+        return false;
+    }
+
     if (config_.scan_pattern.type == ScanPatternType::Table) {
         // Replaying a recorded table is implemented in the Python sensor, which
         // can read the .npy the tooling produces. Whether that belongs in C++,
@@ -112,6 +133,12 @@ bool LiDAR3DSensor::LoadConfig(const std::string& config_path)
             common::get_json_number(root, "update_rate_hz", config_.output.update_rate_hz);
     }
     hako::robots::config::ReadPduConfig(root, config_.output.pdu_name, config_.output.update_rate_hz);
+    if (config_.output.update_rate_hz > 0.0) {
+        // lidar_2d writes the PDU rate back into its scan rate; without this
+        // a profile that sets update_rate_hz would publish at one rate and
+        // scan at another.
+        config_.scan_pattern.frame_rate_hz = config_.output.update_rate_hz;
+    }
 
     config_.distance_accuracy.clear();
     if (spec_root.contains("DistanceAccuracy") && spec_root.at("DistanceAccuracy").is_array()) {
@@ -127,18 +154,20 @@ bool LiDAR3DSensor::LoadConfig(const std::string& config_path)
                 type = entry.value("Type", std::string("independent"));
             }
             accuracy.distance_dependent = (type == "dependent");
-            if (accuracy.distance_dependent) {
-                if (entry.contains("DistanceDependentAccuracy")) {
-                    const auto& dep = entry.at("DistanceDependentAccuracy");
-                    accuracy.percentage = common::get_json_number(dep, "Percentage", 0.0);
-                    accuracy.noise_distribution = dep.value("NoiseDistribution", std::string("Gaussian"));
-                    accuracy.precision = common::get_json_number(dep, "Precision", 0.0);
+            // lidar_2d tolerates the misspelled keys that shipped in older
+            // profiles. Reading only the correct spelling would drop a
+            // profile's noise settings without saying so.
+            const auto* band = accuracy.distance_dependent
+                ? find_first(entry, "DistanceDependentAccuracy", "DistanceDepedentAccuracy")
+                : find_first(entry, "DistanceIndependentAccuracy", "DistanceIndepedentAccuracy");
+            if (band != nullptr) {
+                if (accuracy.distance_dependent) {
+                    accuracy.percentage = common::get_json_number(*band, "Percentage", 0.0);
+                } else {
+                    accuracy.stddev = common::get_json_number(*band, "StdDev", 0.0);
                 }
-            } else if (entry.contains("DistanceIndependentAccuracy")) {
-                const auto& indep = entry.at("DistanceIndependentAccuracy");
-                accuracy.stddev = common::get_json_number(indep, "StdDev", 0.0);
-                accuracy.noise_distribution = indep.value("NoiseDistribution", std::string("Gaussian"));
-                accuracy.precision = common::get_json_number(indep, "Precision", 0.0);
+                accuracy.noise_distribution = band->value("NoiseDistribution", std::string("Gaussian"));
+                accuracy.precision = common::get_json_number(*band, "Precision", 0.0);
             }
             config_.distance_accuracy.push_back(std::move(accuracy));
         }
@@ -168,20 +197,23 @@ bool LiDAR3DSensor::LoadConfig(const std::string& config_path)
             binding->value("exclude_body", config_.mjcf_binding.exclude_body);
     }
 
-    // Constructor arguments win, so a caller can still point the same profile
-    // at another mount; otherwise the profile decides.
-    if (sensor_body_name_.empty()) {
+    // The profile wins over the constructor arguments, as lidar_2d does: the
+    // arguments are the default, and mjcf_binding names the mount the scene
+    // actually has.
+    if (!config_.mjcf_binding.source_body.empty()) {
         sensor_body_name_ = config_.mjcf_binding.source_body;
     }
-    if (sensor_site_name_.empty()) {
+    if (!config_.mjcf_binding.source_site.empty()) {
         sensor_site_name_ = config_.mjcf_binding.source_site;
     }
-    if (exclude_body_name_.empty()) {
+    if (!config_.mjcf_binding.exclude_body.empty()) {
         exclude_body_name_ = config_.mjcf_binding.exclude_body;
     }
 
     RebuildNoisePipeline();
-    scheduler_.Reset();
+    // Every other sensor here starts ready, so the first ShouldUpdate scans
+    // instead of waiting out a period.
+    scheduler_.StartReady(GetUpdatePeriodSec());
     return true;
 }
 
@@ -266,6 +298,49 @@ void LiDAR3DSensor::NextDirections(std::vector<mjtNum>& directions)
     }
 }
 
+double LiDAR3DSensor::CastPastSelf(
+    const mjModel* model,
+    mjData* data,
+    const mjtNum* origin,
+    const mjtNum* direction,
+    int exclude_id,
+    double travelled,
+    int& geom_id) const
+{
+    // The same walk lidar_2d does, for one ray: step just past a self geom and
+    // cast again, so the ray passes through the mount instead of being lost.
+    constexpr int kMaxAttempts = 16;
+    constexpr mjtNum kEpsilon = 1.0e-4;
+    mjtNum point[3] = {origin[0], origin[1], origin[2]};
+    mjtNum dir[3] = {direction[0], direction[1], direction[2]};
+
+    for (int attempt = 0; attempt < kMaxAttempts; ++attempt) {
+        int hit_geom = -1;
+        const mjtNum hit = mj_ray(model, data, point, dir, nullptr, 1, exclude_id,
+                                  &hit_geom, nullptr);
+        if (hit < 0.0) {
+            geom_id = -1;
+            return -1.0;
+        }
+        if (!IsSelfGeom(model, exclude_id, hit_geom)) {
+            geom_id = hit_geom;
+            return travelled + static_cast<double>(hit);
+        }
+        const mjtNum step = hit + kEpsilon;
+        travelled += static_cast<double>(step);
+        if (travelled >= config_.detection_distance.max) {
+            geom_id = -1;
+            return -1.0;
+        }
+        point[0] += dir[0] * step;
+        point[1] += dir[1] * step;
+        point[2] += dir[2] * step;
+    }
+
+    geom_id = -1;
+    return -1.0;
+}
+
 void LiDAR3DSensor::Scan(PointCloudFrame& out)
 {
     out.clear();
@@ -322,6 +397,24 @@ void LiDAR3DSensor::Scan(PointCloudFrame& out)
                 /*geomgroup=*/nullptr, /*flg_static=*/1, exclude_id,
                 geom_ids_.data(), distances_.data(), /*normal=*/nullptr, samples,
                 static_cast<mjtNum>(config_.detection_distance.max));
+
+    // mj_multiRay excludes only the named body's own geoms. A mount with child
+    // bodies, which is what a sensor on a robot has, is otherwise seen by its
+    // own sensor. Re-cast just the rays that hit one.
+    if (exclude_id >= 0) {
+        for (int i = 0; i < samples; ++i) {
+            const int hit_geom = geom_ids_[static_cast<size_t>(i)];
+            if (hit_geom < 0 || !IsSelfGeom(model, exclude_id, hit_geom)) {
+                continue;
+            }
+            int resolved = -1;
+            const double distance = CastPastSelf(
+                model, data, origin, &world_directions[static_cast<size_t>(3 * i)],
+                exclude_id, 0.0, resolved);
+            distances_[static_cast<size_t>(i)] = distance;
+            geom_ids_[static_cast<size_t>(i)] = resolved;
+        }
+    }
 
     out.rays_cast = samples;
     out.xyz.reserve(static_cast<size_t>(samples) * 3U);

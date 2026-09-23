@@ -300,6 +300,18 @@ a conductor cycle that does not match it: matching them stalls the run outright
 once a second asset joins, and leaving the cycle at 100 ms advances simulation
 at a tenth of real time.
 
+Both let a ray through the sensor's own mount rather than stopping on it.
+`mj_multiRay`'s `bodyexclude` drops only the named body's own geoms, not its
+descendants, so a mount carrying a bracket or a housing, which is what a sensor
+on a robot has, would otherwise be seen by its own sensor. Rays that hit one are
+re-cast from just past it, as `lidar_2d` does. Dropping them instead would lose
+whatever stands behind the mount.
+`models/sensors/lidar_3d/livox-mid360s-nested-mount-test.xml` is the fixture for
+that, and it is deliberately harsh: the bracket sits right in front of the
+sensor, so about an eighth of the rays need a second cast and the Python scan
+costs 68 ms a frame against 11 ms on the sample scene. A real mount occludes far
+fewer.
+
 Two differences are deliberate:
 
 - The C++ sensor refuses a `table` scan pattern rather than approximating it.

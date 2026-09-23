@@ -146,6 +146,17 @@ namespace hako::robots::sensor::lidar
     private:
         void RebuildNoisePipeline();
         void NextDirections(std::vector<mjtNum>& directions);
+        // mj_multiRay's bodyexclude drops only that body's own geoms, not its
+        // descendants, so a mount with child bodies is seen by its own sensor.
+        // Re-cast past those, as the 2D sensor does.
+        double CastPastSelf(
+            const mjModel* model,
+            mjData* data,
+            const mjtNum* origin,
+            const mjtNum* direction,
+            int exclude_id,
+            double travelled,
+            int& geom_id) const;
 
         std::shared_ptr<hako::robots::physics::IWorld> world_;
         std::string sensor_body_name_;
